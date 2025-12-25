@@ -11,7 +11,7 @@
 - 🚀 **多輪平行執行** - 使用 `Task.WhenAll` 同時執行多個 Agent，快速測試 Prompt 穩定性
 - 🧠 **AI 智慧評估** - 由更強的 AI 模型分析結果，給出專業評估報告
 - ✨ **一鍵優化建議** - 自動生成優化後的 Prompt，一鍵套用立即改善效果
-- 📋 **預設測試範例** - 內建數學運算、邏輯推理、翻譯、摘要、程式碼生成等測試範例
+- 🎲 **AI 生成範例** - 使用 LLM 動態生成測試範例，支援數學、邏輯、翻譯、程式碼等類別
 
 ## 📸 截圖
 
@@ -74,9 +74,9 @@ PromptAgent/
 │   ├── TestCase.cs          # 測試案例模型
 │   └── TestResult.cs        # 測試結果模型
 ├── Services/
-│   ├── AgentService.cs      # Agent 管理服務 (Task.WhenAll 平行執行)
-│   ├── EvaluationService.cs # 評估服務 (使用更強模型分析)
-│   └── ConfigExportService.cs
+│   ├── AgentService.cs           # Agent 管理服務 (Task.WhenAll 平行執行)
+│   ├── EvaluationService.cs      # 評估服務 (使用更強模型分析)
+│   └── ExampleGeneratorService.cs # LLM 驅動的範例生成服務
 ├── Components/
 │   ├── Layout/              # 版面配置
 │   └── Pages/               # 頁面元件
@@ -85,7 +85,7 @@ PromptAgent/
 
 ## 🎯 使用方法
 
-1. 點擊「**載入範例**」選擇預設測試案例，或自行輸入
+1. 點擊類別按鈕（🧮 數學、🧩 邏輯、🌐 翻譯、💻 程式）讓 AI 自動生成範例，或自行輸入
 2. 填寫 **System Prompt**、**測試問題**、**預期答案**
 3. 選擇 **執行次數**（1-10 次，建議 3-5 次）
 4. 點擊「**開始測試**」
