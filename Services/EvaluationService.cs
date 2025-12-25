@@ -16,6 +16,7 @@ public class EvaluationService
     private readonly AzureOpenAISettings _settings;
     private readonly ILogger<EvaluationService> _logger;
     private readonly AzureOpenAIClient _client;
+    private readonly Lazy<ChatClient> _chatClient;
     
     // 快取 JsonSerializerOptions 避免重複建立
     private static readonly JsonSerializerOptions JsonOptions = new()
@@ -39,12 +40,33 @@ public class EvaluationService
         _client = new AzureOpenAIClient(
             new Uri(endpoint),
             new AzureKeyCredential(apiKey));
+        
+        // 快取 ChatClient 實例以重用連線
+        _chatClient = new Lazy<ChatClient>(() => 
+        {
+            var deploymentName = string.IsNullOrEmpty(_settings.EvaluatorDeploymentName)
+                ? _settings.DeploymentName
+                : _settings.EvaluatorDeploymentName;
+            return _client.GetChatClient(deploymentName);
+        });
     }
 
     /// <summary>
     /// 評估多次執行結果
     /// </summary>
-    public async Task<TestResult> EvaluateResultsAsync(TestCase testCase, List<AgentResponse> responses, CancellationToken cancellationToken = default)
+    public Task<TestResult> EvaluateResultsAsync(TestCase testCase, List<AgentResponse> responses, CancellationToken cancellationToken = default)
+    {
+        return EvaluateResultsAsync(testCase, responses, strategyInstructions: null, cancellationToken);
+    }
+
+    /// <summary>
+    /// 評估多次執行結果（支援策略指令）
+    /// </summary>
+    public async Task<TestResult> EvaluateResultsAsync(
+        TestCase testCase, 
+        List<AgentResponse> responses, 
+        string? strategyInstructions,
+        CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting evaluation for test case {TestCaseId}", testCase.Id);
 
@@ -59,15 +81,18 @@ public class EvaluationService
 
         try
         {
-            var deploymentName = string.IsNullOrEmpty(_settings.EvaluatorDeploymentName)
-                ? _settings.DeploymentName
-                : _settings.EvaluatorDeploymentName;
-
-            var chatClient = _client.GetChatClient(deploymentName);
+            var chatClient = _chatClient.Value;
+            
+            // 組合系統 prompt + 策略指令
+            var systemPrompt = GetEvaluatorSystemPrompt();
+            if (!string.IsNullOrEmpty(strategyInstructions))
+            {
+                systemPrompt += strategyInstructions;
+            }
 
             var messages = new List<ChatMessage>
             {
-                new SystemChatMessage(GetEvaluatorSystemPrompt()),
+                new SystemChatMessage(systemPrompt),
                 new UserChatMessage(evaluationPrompt)
             };
 
@@ -93,19 +118,45 @@ public class EvaluationService
     private static string GetEvaluatorSystemPrompt()
     {
         return """
-            你是一個專業的 Prompt 評估專家。你的任務是分析多次 LLM 執行的結果，評估：
-            1. 穩定性：多次執行結果的一致性 (0-100分)
-            2. 正確性：與預期答案的吻合程度 (0-100分)
-            3. 優化建議：如何改進 System Prompt 以獲得更好的結果
-            4. 優化後的 Prompt：根據建議優化後的完整 System Prompt
+            你是一個專業的 Prompt 工程師和評估專家。你的任務是分析多次 LLM 執行的結果並提供精確的優化建議。
 
-            請以 JSON 格式回覆，格式如下：
+            ## 評估標準
+
+            ### 穩定性評分 (0-100)
+            - 100: 所有回答完全一致
+            - 80-99: 核心內容一致，僅有微小表述差異
+            - 60-79: 主要結論相同，但格式或細節有明顯差異
+            - 40-59: 回答方向一致，但內容差異較大
+            - 0-39: 回答不一致，存在矛盾
+
+            ### 正確性評分 (0-100)
+            - 100: 完全符合預期答案
+            - 80-99: 符合預期，可能有額外的正確補充
+            - 60-79: 大致正確，但有小錯誤或遺漏
+            - 40-59: 部分正確，有明顯錯誤
+            - 0-39: 錯誤或不相關
+
+            ## 優化策略
+
+            當生成優化後的 Prompt 時，請遵循以下原則：
+            1. **具體化**：將模糊的指令改為具體要求
+            2. **結構化**：加入格式要求，如「請以 X 格式回答」
+            3. **約束化**：明確限制回答長度、風格或範圍
+            4. **範例化**：如果適合，可加入簡短範例
+            5. **保守修改**：只修改有問題的部分，不要大幅改動
+
+            ## 回覆格式
+
+            請以 JSON 格式回覆：
             {
                 "stabilityScore": 85,
                 "correctnessScore": 90,
-                "evaluationReport": "詳細評估報告...",
-                "suggestions": ["建議1", "建議2", "建議3"],
-                "optimizedPrompt": "優化後的完整 System Prompt..."
+                "evaluationReport": "詳細分析每次回答的差異和問題...",
+                "suggestions": ["具體建議1", "具體建議2"],
+                "optimizedPrompt": "完整的優化後 System Prompt"
+            }
+
+            重要：optimizedPrompt 必須是可以直接使用的完整 Prompt，不要使用 [原本的內容] 這類佔位符。
             """;
     }
 
@@ -210,11 +261,7 @@ public class EvaluationService
 
         try
         {
-            var deploymentName = string.IsNullOrEmpty(_settings.EvaluatorDeploymentName)
-                ? _settings.DeploymentName
-                : _settings.EvaluatorDeploymentName;
-
-            var chatClient = _client.GetChatClient(deploymentName);
+            var chatClient = _chatClient.Value;
 
             var messages = new List<ChatMessage>
             {
@@ -255,11 +302,7 @@ public class EvaluationService
 
         try
         {
-            var deploymentName = string.IsNullOrEmpty(_settings.EvaluatorDeploymentName)
-                ? _settings.DeploymentName
-                : _settings.EvaluatorDeploymentName;
-
-            var chatClient = _client.GetChatClient(deploymentName);
+            var chatClient = _chatClient.Value;
 
             var messages = new List<ChatMessage>
             {

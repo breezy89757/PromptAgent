@@ -4,6 +4,7 @@
 @inject AgentService AgentService
 @inject EvaluationService EvaluationService
 @inject ExampleGeneratorService ExampleGenerator
+@inject MetaEvaluatorService MetaEvaluator
 @rendermode InteractiveServer
 @implements IDisposable
 
@@ -230,10 +231,18 @@
                                 <span>📈</span>
                                 智慧修正歷史 (@smartModeHistory.Count 輪)
                             </h2>
-                            @if (performanceMetrics != null)
-                            {
-                                <span class="perf-badge">∱ @performanceMetrics.TotalTimeMs ms</span>
-                            }
+                            <div class="header-badges">
+                                @if (MetaEvaluator.CurrentStrategy != EvaluatorStrategy.Standard)
+                                {
+                                    <span class="strategy-badge @GetStrategyClass(MetaEvaluator.CurrentStrategy)" title="@MetaEvaluator.StrategyDescription">
+                                        @GetStrategyIcon(MetaEvaluator.CurrentStrategy) @GetStrategyLabel(MetaEvaluator.CurrentStrategy)
+                                    </span>
+                                }
+                                @if (performanceMetrics != null)
+                                {
+                                    <span class="perf-badge">∱ @performanceMetrics.TotalTimeMs ms</span>
+                                }
+                            </div>
                         </div>
                         <div class="card-body">
                             @if (performanceMetrics != null)
@@ -892,6 +901,7 @@
         roundMetrics.Clear();
         performanceMetrics = null;
         testResult = null;
+        MetaEvaluator.Reset(); // 重置 Meta-Evaluator 策略
         StateHasChanged();
 
         var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
@@ -925,12 +935,17 @@
                 completedCount = responses.Count;
                 StateHasChanged();
 
-                // 評估結果
+                // 評估結果（使用 MetaEvaluator 的策略指令）
                 var evalStopwatch = System.Diagnostics.Stopwatch.StartNew();
-                testResult = await EvaluationService.EvaluateResultsAsync(testCase, responses, token);
+                var strategyInstructions = MetaEvaluator.GetStrategyInstructions();
+                var previousPrompt = testCase.SystemPrompt;
+                testResult = await EvaluationService.EvaluateResultsAsync(testCase, responses, strategyInstructions, token);
                 evalStopwatch.Stop();
                 totalEvalTime += evalStopwatch.ElapsedMilliseconds;
                 totalApiCalls++; // 評估也是一次 API 呼叫
+                
+                // 記錄到 MetaEvaluator 以追蹤表現
+                MetaEvaluator.RecordRound(testResult, previousPrompt, testResult.OptimizedPrompt ?? previousPrompt);
                 
                 roundStopwatch.Stop();
                 
@@ -1049,6 +1064,33 @@
         <= 0.8f => "⚖️ 標準",
         <= 1.2f => "✨ 創意",
         _ => "🔥 高創意"
+    };
+
+    private static string GetStrategyClass(EvaluatorStrategy strategy) => strategy switch
+    {
+        EvaluatorStrategy.Conservative => "strategy-conservative",
+        EvaluatorStrategy.Aggressive => "strategy-aggressive",
+        EvaluatorStrategy.StabilityFocus => "strategy-stability",
+        EvaluatorStrategy.CorrectnessFocus => "strategy-correctness",
+        _ => ""
+    };
+
+    private static string GetStrategyIcon(EvaluatorStrategy strategy) => strategy switch
+    {
+        EvaluatorStrategy.Conservative => "🛡️",
+        EvaluatorStrategy.Aggressive => "🚀",
+        EvaluatorStrategy.StabilityFocus => "🎯",
+        EvaluatorStrategy.CorrectnessFocus => "✓",
+        _ => "⚙️"
+    };
+
+    private static string GetStrategyLabel(EvaluatorStrategy strategy) => strategy switch
+    {
+        EvaluatorStrategy.Conservative => "保守",
+        EvaluatorStrategy.Aggressive => "激進",
+        EvaluatorStrategy.StabilityFocus => "穩定優先",
+        EvaluatorStrategy.CorrectnessFocus => "正確優先",
+        _ => "標準"
     };
 
     #region 引導模式 (Guided Mode)

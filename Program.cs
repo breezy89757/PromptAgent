@@ -17,6 +17,9 @@ builder.Services.AddSingleton<AgentService>();
 builder.Services.AddSingleton<EvaluationService>();
 builder.Services.AddSingleton<ExampleGeneratorService>();
 
+// Meta-Evaluator 使用 Scoped，每個用戶 session 獨立追蹤
+builder.Services.AddScoped<MetaEvaluatorService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.

@@ -29,6 +29,7 @@ public class AgentService
     private readonly AzureOpenAISettings _settings;
     private readonly ILogger<AgentService> _logger;
     private readonly AzureOpenAIClient _client;
+    private readonly Lazy<ChatClient> _chatClient;
 
     public AgentService(IOptions<AzureOpenAISettings> settings, ILogger<AgentService> logger)
     {
@@ -37,6 +38,9 @@ public class AgentService
         _client = new AzureOpenAIClient(
             new Uri(_settings.Endpoint),
             new AzureKeyCredential(_settings.ApiKey));
+        
+        // 快取 ChatClient 實例以重用連線
+        _chatClient = new Lazy<ChatClient>(() => _client.GetChatClient(_settings.DeploymentName));
     }
 
     /// <summary>
@@ -47,7 +51,7 @@ public class AgentService
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var chatClient = _client.GetChatClient(_settings.DeploymentName);
+            var chatClient = _chatClient.Value;
 
             var messages = new List<ChatMessage>
             {

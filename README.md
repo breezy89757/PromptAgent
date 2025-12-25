@@ -13,6 +13,18 @@
 - ✨ **一鍵優化建議** - 自動生成優化後的 Prompt，一鍵套用立即改善效果
 - 🎲 **AI 生成範例** - 使用 LLM 動態生成測試範例，支援數學、邏輯、翻譯、程式碼等類別
 - 🎯 **引導模式** - 人機協作優化，每輪暫停讓您選擇偏好的回答風格
+- 🔄 **Meta-Prompt 優化** - Evaluator 自動學習調整策略，根據優化效果動態切換模式
+
+## 🧬 Meta-Prompt Optimization (新功能！)
+
+系統會追蹤每輪優化的效果，並自動調整 Evaluator 的策略：
+
+| 策略 | 觸發條件 | 行為 |
+|-----|---------|-----|
+| 🛡️ **保守模式** | 連續 2 輪分數下降 | 小幅修改，保留原結構 |
+| 🚀 **激進模式** | 連續 3 輪分數停滯 | 大膽嘗試新方向 |
+| 🎯 **穩定優先** | 穩定性明顯低於正確性 | 專注減少輸出變異 |
+| ✓ **正確優先** | 正確性明顯低於穩定性 | 專注提升答案品質 |
 
 ## 📸 截圖
 
@@ -90,7 +102,8 @@ PromptAgent/
 ├── Services/
 │   ├── AgentService.cs          # Agent 管理服務 (平行執行)
 │   ├── EvaluationService.cs     # 評估服務 (分析 + 引導模式)
-│   └── ExampleGeneratorService.cs # LLM 驅動的範例生成
+│   ├── ExampleGeneratorService.cs # LLM 驅動的範例生成
+│   └── MetaEvaluatorService.cs  # Meta-Prompt 自適應優化
 ├── Components/
 │   ├── Layout/                  # 版面配置
 │   └── Pages/                   # 頁面元件
