@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.Json;
 using Azure;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.Options;
@@ -15,6 +16,12 @@ public class EvaluationService
     private readonly AzureOpenAISettings _settings;
     private readonly ILogger<EvaluationService> _logger;
     private readonly AzureOpenAIClient _client;
+    
+    // 快取 JsonSerializerOptions 避免重複建立
+    private static readonly JsonSerializerOptions JsonOptions = new()
+    {
+        PropertyNameCaseInsensitive = true
+    };
 
     public EvaluationService(IOptions<AzureOpenAISettings> settings, ILogger<EvaluationService> logger)
     {
@@ -153,8 +160,7 @@ public class EvaluationService
             if (jsonStart >= 0 && jsonEnd > jsonStart)
             {
                 var json = content[jsonStart..(jsonEnd + 1)];
-                var parsed = System.Text.Json.JsonSerializer.Deserialize<EvaluationResponse>(json,
-                    new System.Text.Json.JsonSerializerOptions { PropertyNameCaseInsensitive = true });
+                var parsed = JsonSerializer.Deserialize<EvaluationResponse>(json, JsonOptions);
 
                 if (parsed != null)
                 {

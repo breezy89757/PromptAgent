@@ -31,6 +31,11 @@ public class TestCase
     public int ExecutionCount { get; set; } = 3;
 
     /// <summary>
+    /// Temperature (0-2)，0 = 穩定確定性，1 = 標準，2 = 高創意
+    /// </summary>
+    public float Temperature { get; set; } = 0.7f;
+
+    /// <summary>
     /// 建立時間
     /// </summary>
     public DateTime CreatedAt { get; set; } = DateTime.UtcNow;

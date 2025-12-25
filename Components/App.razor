@@ -16,7 +16,16 @@
 
 <body>
     <Routes />
-    <ReconnectModal />
+    
+    <!-- 自訂重連 UI -->
+    <div id="components-reconnect-modal" class="reconnect-modal">
+        <div class="reconnect-content">
+            <div class="reconnect-spinner"></div>
+            <h3 class="reconnect-title">連線中斷</h3>
+            <p class="reconnect-message">正在嘗試重新連線...</p>
+        </div>
+    </div>
+    
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="@Assets["lib/bootstrap/dist/js/bootstrap.bundle.min.js"]"></script>
 </body>

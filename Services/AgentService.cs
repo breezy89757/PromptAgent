@@ -55,7 +55,12 @@ public class AgentService
                 new UserChatMessage(testCase.Question)
             };
 
-            var response = await chatClient.CompleteChatAsync(messages, cancellationToken: cancellationToken);
+            var options = new ChatCompletionOptions
+            {
+                Temperature = testCase.Temperature
+            };
+
+            var response = await chatClient.CompleteChatAsync(messages, options, cancellationToken);
             stopwatch.Stop();
 
             var content = response.Value.Content.FirstOrDefault()?.Text ?? string.Empty;

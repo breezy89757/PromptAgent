@@ -3,7 +3,9 @@
 @using PromptAgent.Services
 @inject AgentService AgentService
 @inject EvaluationService EvaluationService
+@inject ExampleGeneratorService ExampleGenerator
 @rendermode InteractiveServer
+@implements IDisposable
 
 <PageTitle>Prompt Test - PromptAgent</PageTitle>
 
@@ -25,16 +27,27 @@
                         測試配置
                     </h2>
                     <div class="dropdown">
-                        <button class="dropdown-btn dropdown-toggle" type="button" data-bs-toggle="dropdown">
-                            ⚡ 載入範例
+                        <button class="dropdown-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" disabled="@isGeneratingExample">
+                            @if (isGeneratingExample)
+                            {
+                                <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                <span>生成中...</span>
+                            }
+                            else
+                            {
+                                <span>✨ AI 生成範例</span>
+                            }
                         </button>
                         <ul class="dropdown-menu dropdown-menu-end">
-                            <li><h6 class="dropdown-header">選擇預設測試範例</h6></li>
-                            <li><button class="dropdown-item" type="button" @onclick="() => LoadExample(0)">📐 數學運算</button></li>
-                            <li><button class="dropdown-item" type="button" @onclick="() => LoadExample(1)">🧠 邏輯推理</button></li>
-                            <li><button class="dropdown-item" type="button" @onclick="() => LoadExample(2)">🌐 翻譯任務</button></li>
-                            <li><button class="dropdown-item" type="button" @onclick="() => LoadExample(3)">📝 文字摘要</button></li>
-                            <li><button class="dropdown-item" type="button" @onclick="() => LoadExample(4)">💻 程式碼生成</button></li>
+                            <li><h6 class="dropdown-header">選擇分類，AI 隨機生成範例</h6></li>
+                            @foreach (var category in ExampleGeneratorService.Categories)
+                            {
+                                <li>
+                                    <button class="dropdown-item" type="button" @onclick="() => GenerateExample(category.Id)">
+                                        @category.Name
+                                    </button>
+                                </li>
+                            }
                         </ul>
                     </div>
                 </div>
@@ -65,7 +78,7 @@
 
                     <div class="form-group">
                         <label class="form-label">
-                            執行次數: <span class="range-value">@testCase.ExecutionCount</span>
+                            每輪執行次數: <span class="range-value">@testCase.ExecutionCount</span>
                         </label>
                         <div class="range-container">
                             <input type="range"
@@ -74,13 +87,30 @@
                                    max="10"
                                    @bind="testCase.ExecutionCount" />
                         </div>
-                        <p class="range-hint">執行多次以測試穩定性 (建議 3-5 次)</p>
+                        <p class="range-hint">每輪執行多次以測試穩定性 (建議 3-5 次)</p>
                     </div>
 
+                    <div class="form-group">
+                        <label class="form-label">
+                            Temperature: <span class="range-value @GetTemperatureClass(testCase.Temperature)">@testCase.Temperature.ToString("0.0")</span>
+                            <span class="temp-label">@GetTemperatureLabel(testCase.Temperature)</span>
+                        </label>
+                        <div class="range-container">
+                            <input type="range"
+                                   class="form-range"
+                                   min="0"
+                                   max="2"
+                                   step="0.1"
+                                   @bind="testCase.Temperature" />
+                        </div>
+                        <p class="range-hint">0 = 穩定確定 | 0.7 = 標準 | 1.5+ = 高創意</p>
+                    </div>
+
+                    <!-- 一般測試按鈕 -->
                     <button class="btn-execute"
                             @onclick="ExecuteTestAsync"
                             disabled="@isExecuting">
-                        @if (isExecuting)
+                        @if (isExecuting && !isSmartMode)
                         {
                             <span class="spinner"></span>
                             <span>執行中... (@completedCount/@testCase.ExecutionCount)</span>
@@ -91,12 +121,141 @@
                             <span>開始測試</span>
                         }
                     </button>
+
+                    <!-- 智慧修正模式 -->
+                    <div class="smart-mode-section">
+                        <div class="smart-mode-header">
+                            <span>🔄</span>
+                            <span>智慧修正模式</span>
+                        </div>
+                        <div class="smart-mode-config">
+                            <div class="input-row">
+                                <label class="form-label">優化輪數:</label>
+                                <input type="number"
+                                       class="form-control form-control-sm"
+                                       style="width: 80px;"
+                                       min="1"
+                                       max="20"
+                                       @bind="smartRounds" />
+                            </div>
+                            <div class="input-row">
+                                <label class="form-label">目標分數:</label>
+                                <input type="number"
+                                       class="form-control form-control-sm"
+                                       style="width: 80px;"
+                                       min="50"
+                                       max="100"
+                                       @bind="targetScore" />
+                                <label class="checkbox-label">
+                                    <input type="checkbox" @bind="autoStopOnTarget" />
+                                    <span>達標即停</span>
+                                </label>
+                            </div>
+                            <p class="range-hint">穩定性和正確性都達到目標分數時自動停止</p>
+                        </div>
+                        <button class="btn-smart"
+                                @onclick="ExecuteSmartModeAsync"
+                                disabled="@isExecuting">
+                            @if (isExecuting && isSmartMode)
+                            {
+                                <span class="spinner"></span>
+                                <span>智慧修正中... 第 @currentRound/@smartRounds 輪</span>
+                            }
+                            else
+                            {
+                                <span>🚀</span>
+                                <span>啟動智慧修正</span>
+                            }
+                        </button>
+                        @if (stoppedEarly)
+                        {
+                            <div class="early-stop-notice">
+                                ✅ 已於第 @currentRound 輪達到目標分數 (@targetScore)，提前停止
+                            </div>
+                        }
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- 右側: 結果區域 -->
         <div>
+            @if (smartModeHistory.Count > 0)
+            {
+                <!-- 智慧修正歷史 -->
+                <div class="test-card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.2) 0%, rgba(251, 146, 60, 0.2) 100%);">
+                        <h2 class="card-title">
+                            <span>📈</span>
+                            智慧修正歷史 (@smartModeHistory.Count 輪)
+                        </h2>
+                        @if (performanceMetrics != null)
+                        {
+                            <span class="perf-badge">∱ @performanceMetrics.TotalTimeMs ms</span>
+                        }
+                    </div>
+                    <div class="card-body">
+                        @if (performanceMetrics != null)
+                        {
+                            <div class="perf-metrics">
+                                <div class="perf-item">
+                                    <span class="perf-label">總耗時</span>
+                                    <span class="perf-value">@performanceMetrics.TotalTimeMs ms</span>
+                                </div>
+                                <div class="perf-item">
+                                    <span class="perf-label">平均每輪</span>
+                                    <span class="perf-value">@performanceMetrics.AvgRoundTimeMs ms</span>
+                                </div>
+                                <div class="perf-item">
+                                    <span class="perf-label">API 呼叫</span>
+                                    <span class="perf-value">@performanceMetrics.TotalApiCalls 次</span>
+                                </div>
+                                <div class="perf-item">
+                                    <span class="perf-label">平均響應</span>
+                                    <span class="perf-value">@performanceMetrics.AvgApiTimeMs ms</span>
+                                </div>
+                            </div>
+                        }
+                        <div class="history-timeline">
+                            @foreach (var (round, result, metrics) in smartModeHistory.Select((r, i) => (i + 1, r, roundMetrics.Count > i ? roundMetrics[i] : null)))
+                            {
+                                <div class="history-item">
+                                    <div class="history-round">第 @round 輪</div>
+                                    <div class="history-scores">
+                                        <span class="history-score @GetScoreClass(result.StabilityScore)">
+                                            穩定: @result.StabilityScore
+                                        </span>
+                                        <span class="history-score @GetScoreClass(result.CorrectnessScore)">
+                                            正確: @result.CorrectnessScore
+                                        </span>
+                                        @if (metrics != null)
+                                        {
+                                            <span class="history-time">@metrics.RoundTimeMs ms</span>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                        @if (smartModeHistory.Count >= 2)
+                        {
+                            var first = smartModeHistory.First();
+                            var last = smartModeHistory.Last();
+                            var stabilityChange = last.StabilityScore - first.StabilityScore;
+                            var correctnessChange = last.CorrectnessScore - first.CorrectnessScore;
+                            <div class="history-summary">
+                                <span>總變化:</span>
+                                <span class="@(stabilityChange >= 0 ? "text-success" : "text-danger")">
+                                    穩定性 @(stabilityChange >= 0 ? "+" : "")@stabilityChange
+                                </span>
+                                <span class="@(correctnessChange >= 0 ? "text-success" : "text-danger")">
+                                    正確性 @(correctnessChange >= 0 ? "+" : "")@correctnessChange
+                                </span>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
             @if (testResult != null)
             {
                 <!-- 評分卡片 -->
@@ -226,7 +385,7 @@
                         <h3 class="empty-title">尚無測試結果</h3>
                         <p class="empty-hint">
                             填寫左側的測試配置，然後點擊「開始測試」按鈕<br />
-                            💡 提示：點擊「載入範例」快速開始
+                            💡 提示：使用「智慧修正模式」自動迭代優化 Prompt
                         </p>
                     </div>
                 </div>
@@ -240,56 +399,72 @@
     private TestResult? testResult;
     private bool isExecuting;
     private int completedCount;
+    
+    // 範例生成
+    private bool isGeneratingExample;
+    
+    // 智慧修正模式
+    private bool isSmartMode;
+    private int smartRounds = 3;
+    private int currentRound;
+    private List<TestResult> smartModeHistory = [];
+    
+    // 目標分數設定
+    private int targetScore = 100;
+    private bool autoStopOnTarget = true;
+    private bool stoppedEarly;
+    
+    // 效能監控
+    private PerformanceMetrics? performanceMetrics;
+    private List<RoundMetrics> roundMetrics = [];
+    
+    // 用於取消非同步操作，防止元件銷毀後繼續執行
+    private CancellationTokenSource? _cts;
 
-    // 預設測試範例
-    private static readonly List<TestCase> Examples =
-    [
-        // 數學運算
-        new TestCase
-        {
-            SystemPrompt = "你是一個數學助教，回答需包含完整的計算過程。請使用以下格式：\n1. 設定變數\n2. 列出方程式\n3. 逐步求解\n4. 最終答案",
-            Question = "如果一個數字的三倍加上5等於20，這個數字是多少？",
-            ExpectedAnswer = "設數字為 x\n方程式：3x + 5 = 20\n解：3x = 15 → x = 5\n答案：5"
-        },
-        // 邏輯推理
-        new TestCase
-        {
-            SystemPrompt = "你是一個邏輯推理專家。請分析問題，列出所有已知條件，逐步推導，並給出明確的結論。",
-            Question = "小明比小華高，小華比小李高，小李比小張高。請問誰最高？誰最矮？",
-            ExpectedAnswer = "已知條件：小明 > 小華 > 小李 > 小張\n結論：小明最高，小張最矮"
-        },
-        // 翻譯任務
-        new TestCase
-        {
-            SystemPrompt = "你是一個專業的翻譯助手。請將使用者輸入的內容翻譯成繁體中文，保持原文的語氣和風格。",
-            Question = "Please translate: 'The quick brown fox jumps over the lazy dog.'",
-            ExpectedAnswer = "敏捷的棕色狐狸跳過了懶惰的狗。"
-        },
-        // 文字摘要
-        new TestCase
-        {
-            SystemPrompt = "你是一個文字摘要專家。請用3個重點總結使用者提供的內容，每個重點不超過20個字。",
-            Question = "人工智慧（AI）是計算機科學的一個分支，它試圖理解智慧的實質，並生產出一種新的能以類似於人類智慧的方式作出反應的智慧機器。該領域的研究包括機器人、語言識別、圖像識別、自然語言處理和專家系統等。",
-            ExpectedAnswer = "1. AI是計算機科學的分支\n2. 目標是創造類人智慧的機器\n3. 包含機器人、語言識別等領域"
-        },
-        // 程式碼生成
-        new TestCase
-        {
-            SystemPrompt = "你是一個程式碼助手。請用簡潔的程式碼解決問題，並加上必要的註解說明。使用 Python 語言。",
-            Question = "寫一個函式計算費氏數列的第 n 項",
-            ExpectedAnswer = "def fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)"
-        }
-    ];
-
-    private void LoadExample(int index)
+    // 效能監控模型
+    private class PerformanceMetrics
     {
-        if (index >= 0 && index < Examples.Count)
+        public long TotalTimeMs { get; set; }
+        public long AvgRoundTimeMs { get; set; }
+        public int TotalApiCalls { get; set; }
+        public long AvgApiTimeMs { get; set; }
+    }
+    
+    private class RoundMetrics
+    {
+        public int Round { get; set; }
+        public long RoundTimeMs { get; set; }
+        public long AgentTimeMs { get; set; }
+        public long EvalTimeMs { get; set; }
+    }
+
+
+    private async Task GenerateExample(string categoryId)
+    {
+        isGeneratingExample = true;
+        StateHasChanged();
+
+        try
         {
-            var example = Examples[index];
+            var example = await ExampleGenerator.GenerateExampleAsync(categoryId);
             testCase.SystemPrompt = example.SystemPrompt;
             testCase.Question = example.Question;
             testCase.ExpectedAnswer = example.ExpectedAnswer;
             testResult = null;
+            smartModeHistory.Clear();
+            roundMetrics.Clear();
+            performanceMetrics = null;
+        }
+        catch (Exception ex)
+        {
+            // 如果生成失敗，顯示錯誤
+            testCase.SystemPrompt = $"範例生成失敗：{ex.Message}";
+            testCase.Question = "";
+            testCase.ExpectedAnswer = "";
+        }
+        finally
+        {
+            isGeneratingExample = false;
             StateHasChanged();
         }
     }
@@ -311,20 +486,28 @@
             return;
         }
 
+        // 取消之前的操作並建立新的 CancellationTokenSource
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
         isExecuting = true;
+        isSmartMode = false;
         completedCount = 0;
         testResult = null;
         StateHasChanged();
 
         try
         {
-            // 平行執行多個 Agent
-            var responses = await AgentService.ExecuteParallelAsync(testCase);
+            var responses = await AgentService.ExecuteParallelAsync(testCase, token);
             completedCount = responses.Count;
             StateHasChanged();
 
-            // 使用評估服務分析結果
-            testResult = await EvaluationService.EvaluateResultsAsync(testCase, responses);
+            testResult = await EvaluationService.EvaluateResultsAsync(testCase, responses, token);
+        }
+        catch (OperationCanceledException)
+        {
+            // 操作已取消，正常情況
         }
         catch (Exception ex)
         {
@@ -342,10 +525,186 @@
         }
     }
 
+    private async Task ExecuteSmartModeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(testCase.SystemPrompt) ||
+            string.IsNullOrWhiteSpace(testCase.Question))
+        {
+            return;
+        }
+
+        // 限制輪數和目標分數範圍
+        smartRounds = Math.Clamp(smartRounds, 1, 20);
+        targetScore = Math.Clamp(targetScore, 50, 100);
+
+        // 取消之前的操作並建立新的 CancellationTokenSource
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        isExecuting = true;
+        isSmartMode = true;
+        currentRound = 0;
+        stoppedEarly = false;
+        smartModeHistory.Clear();
+        roundMetrics.Clear();
+        performanceMetrics = null;
+        testResult = null;
+        StateHasChanged();
+
+        var totalStopwatch = System.Diagnostics.Stopwatch.StartNew();
+        long totalAgentTime = 0;
+        long totalEvalTime = 0;
+        int totalApiCalls = 0;
+        
+        // 記錄最佳 Prompt 和分數
+        string bestPrompt = testCase.SystemPrompt;
+        int bestScore = 0;
+        int consecutiveDeclines = 0;
+
+        try
+        {
+            for (int round = 1; round <= smartRounds; round++)
+            {
+                token.ThrowIfCancellationRequested();
+                
+                var roundStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                currentRound = round;
+                completedCount = 0;
+                StateHasChanged();
+
+                // 執行測試
+                var agentStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                var responses = await AgentService.ExecuteParallelAsync(testCase, token);
+                agentStopwatch.Stop();
+                totalAgentTime += agentStopwatch.ElapsedMilliseconds;
+                totalApiCalls += responses.Count;
+                
+                completedCount = responses.Count;
+                StateHasChanged();
+
+                // 評估結果
+                var evalStopwatch = System.Diagnostics.Stopwatch.StartNew();
+                testResult = await EvaluationService.EvaluateResultsAsync(testCase, responses, token);
+                evalStopwatch.Stop();
+                totalEvalTime += evalStopwatch.ElapsedMilliseconds;
+                totalApiCalls++; // 評估也是一次 API 呼叫
+                
+                roundStopwatch.Stop();
+                
+                // 記錄這輪的效能數據
+                roundMetrics.Add(new RoundMetrics
+                {
+                    Round = round,
+                    RoundTimeMs = roundStopwatch.ElapsedMilliseconds,
+                    AgentTimeMs = agentStopwatch.ElapsedMilliseconds,
+                    EvalTimeMs = evalStopwatch.ElapsedMilliseconds
+                });
+                
+                smartModeHistory.Add(testResult);
+                
+                // 計算當前綜合分數 (取兩者較低的，因為要雙優)
+                int currentScore = Math.Min(testResult.StabilityScore, testResult.CorrectnessScore);
+                
+                // 檢查是否為最佳分數
+                if (currentScore > bestScore)
+                {
+                    bestScore = currentScore;
+                    bestPrompt = testCase.SystemPrompt;
+                    consecutiveDeclines = 0;
+                }
+                else if (currentScore < bestScore)
+                {
+                    consecutiveDeclines++;
+                    
+                    // 如果連續下降 2 次，回滾到最佳 Prompt
+                    if (consecutiveDeclines >= 2)
+                    {
+                        testCase.SystemPrompt = bestPrompt;
+                        consecutiveDeclines = 0;
+                    }
+                }
+                
+                StateHasChanged();
+
+                // 檢查是否達到目標分數
+                if (autoStopOnTarget && 
+                    testResult.StabilityScore >= targetScore && 
+                    testResult.CorrectnessScore >= targetScore)
+                {
+                    stoppedEarly = true;
+                    break;
+                }
+
+                // 如果有優化建議且不是最後一輪，自動接受
+                if (round < smartRounds && !string.IsNullOrEmpty(testResult.OptimizedPrompt))
+                {
+                    testCase.SystemPrompt = testResult.OptimizedPrompt;
+                    
+                    // 短暫延遲讓用戶看到進度
+                    await Task.Delay(300, token);
+                }
+            }
+            
+            // 最後確保使用最佳 Prompt
+            testCase.SystemPrompt = bestPrompt;
+            
+            // 計算總體效能指標
+            totalStopwatch.Stop();
+            performanceMetrics = new PerformanceMetrics
+            {
+                TotalTimeMs = totalStopwatch.ElapsedMilliseconds,
+                AvgRoundTimeMs = smartModeHistory.Count > 0 ? totalStopwatch.ElapsedMilliseconds / smartModeHistory.Count : 0,
+                TotalApiCalls = totalApiCalls,
+                AvgApiTimeMs = totalApiCalls > 0 ? (totalAgentTime + totalEvalTime) / totalApiCalls : 0
+            };
+        }
+        catch (OperationCanceledException)
+        {
+            // 操作已取消，正常情況
+        }
+        catch (Exception ex)
+        {
+            testResult = new TestResult
+            {
+                TestCaseId = testCase.Id,
+                EvaluationReport = $"智慧修正失敗: {ex.Message}",
+                Suggestions = ["請檢查 Azure OpenAI 連線設定是否正確"]
+            };
+        }
+        finally
+        {
+            isExecuting = false;
+            isSmartMode = false;
+            StateHasChanged();
+        }
+    }
+
+    public void Dispose()
+    {
+        _cts?.Cancel();
+        _cts?.Dispose();
+    }
+
     private static string GetScoreClass(int score) => score switch
     {
         >= 80 => "success",
         >= 60 => "warning",
         _ => "danger"
+    };
+
+    private static string GetTemperatureClass(float temp) => temp switch
+    {
+        <= 0.3f => "temp-stable",
+        <= 0.8f => "temp-standard",
+        _ => "temp-creative"
+    };
+
+    private static string GetTemperatureLabel(float temp) => temp switch
+    {
+        <= 0.3f => "🎯 穩定",
+        <= 0.8f => "⚖️ 標準",
+        <= 1.2f => "✨ 創意",
+        _ => "🔥 高創意"
     };
 }

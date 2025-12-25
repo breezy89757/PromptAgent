@@ -12,9 +12,10 @@ builder.Services.Configure<AzureOpenAISettings>(
     builder.Configuration.GetSection("AzureOpenAI"));
 
 // Register application services
-builder.Services.AddScoped<AgentService>();
-builder.Services.AddScoped<EvaluationService>();
-builder.Services.AddScoped<ConfigExportService>();
+// 使用 Singleton 讓 AzureOpenAIClient 可以重用 HTTP 連線
+builder.Services.AddSingleton<AgentService>();
+builder.Services.AddSingleton<EvaluationService>();
+builder.Services.AddSingleton<ExampleGeneratorService>();
 
 var app = builder.Build();
 
@@ -25,7 +26,7 @@ if (!app.Environment.IsDevelopment())
     // The default HSTS value is 30 days. You may want to change this for production scenarios, see https://aka.ms/aspnetcore-hsts.
     app.UseHsts();
 }
-app.UseStatusCodePagesWithReExecute("/not-found", createScopeForStatusCodePages: true);
+
 app.UseHttpsRedirection();
 
 app.UseAntiforgery();

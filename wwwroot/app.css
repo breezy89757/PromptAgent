@@ -1,8 +1,10 @@
-html, body {
+html,
+body {
     font-family: 'Helvetica Neue', Helvetica, Arial, sans-serif;
 }
 
-a, .btn-link {
+a,
+.btn-link {
     color: #006bb7;
 }
 
@@ -12,8 +14,12 @@ a, .btn-link {
     border-color: #1861ac;
 }
 
-.btn:focus, .btn:active:focus, .btn-link.nav-link:focus, .form-control:focus, .form-check-input:focus {
-  box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
+.btn:focus,
+.btn:active:focus,
+.btn-link.nav-link:focus,
+.form-control:focus,
+.form-check-input:focus {
+    box-shadow: 0 0 0 0.1rem white, 0 0 0 0.25rem #258cfb;
 }
 
 .content {
@@ -42,19 +48,110 @@ h1:focus {
     color: white;
 }
 
-    .blazor-error-boundary::after {
-        content: "An error has occurred."
-    }
+.blazor-error-boundary::after {
+    content: "An error has occurred."
+}
 
 .darker-border-checkbox.form-check-input {
     border-color: #929292;
 }
 
-.form-floating > .form-control-plaintext::placeholder, .form-floating > .form-control::placeholder {
+.form-floating>.form-control-plaintext::placeholder,
+.form-floating>.form-control::placeholder {
     color: var(--bs-secondary-color);
     text-align: end;
 }
 
-.form-floating > .form-control-plaintext:focus::placeholder, .form-floating > .form-control:focus::placeholder {
+.form-floating>.form-control-plaintext:focus::placeholder,
+.form-floating>.form-control:focus::placeholder {
     text-align: start;
+}
+
+/* ===================================
+   Custom Reconnect Modal
+   =================================== */
+#components-reconnect-modal {
+    position: fixed;
+    top: 0;
+    left: 0;
+    right: 0;
+    bottom: 0;
+    z-index: 10000;
+    display: none;
+    background: rgba(15, 15, 35, 0.95);
+    backdrop-filter: blur(10px);
+}
+
+#components-reconnect-modal.show {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.reconnect-content {
+    text-align: center;
+    padding: 2rem 3rem;
+    background: linear-gradient(135deg, rgba(26, 26, 46, 0.9) 0%, rgba(22, 33, 62, 0.9) 100%);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 1rem;
+    box-shadow: 0 20px 60px rgba(0, 0, 0, 0.5);
+}
+
+.reconnect-spinner {
+    width: 48px;
+    height: 48px;
+    margin: 0 auto 1.5rem;
+    border: 3px solid rgba(102, 126, 234, 0.2);
+    border-top-color: #667eea;
+    border-radius: 50%;
+    animation: reconnect-spin 1s linear infinite;
+}
+
+@keyframes reconnect-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}
+
+.reconnect-title {
+    font-size: 1.25rem;
+    font-weight: 600;
+    color: #fff;
+    margin: 0 0 0.5rem 0;
+}
+
+.reconnect-message {
+    font-size: 0.9rem;
+    color: #888;
+    margin: 0;
+}
+
+/* States */
+#components-reconnect-modal.show.failed .reconnect-spinner {
+    border-color: rgba(239, 68, 68, 0.2);
+    border-top-color: #ef4444;
+}
+
+#components-reconnect-modal.show.failed .reconnect-title::after {
+    content: " 失敗";
+    color: #ef4444;
+}
+
+#components-reconnect-modal.show.rejected .reconnect-spinner {
+    display: none;
+}
+
+#components-reconnect-modal.show.rejected .reconnect-title::after {
+    content: "";
+}
+
+#components-reconnect-modal.show.rejected .reconnect-message::after {
+    content: "請重新整理頁面";
+    display: block;
+    margin-top: 1rem;
+    padding: 0.5rem 1rem;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border-radius: 0.5rem;
+    color: #fff;
+    cursor: pointer;
 }
