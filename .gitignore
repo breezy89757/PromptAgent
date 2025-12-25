@@ -25,10 +25,10 @@ bld/
 .nuget/
 packages/
 
-# User-specific files
+# Secrets - 排除真正的設定檔，只保留範本
+appsettings.json
 appsettings.Development.json
-appsettings.*.json
-!appsettings.json
+!appsettings.template.json
 
 # PromptAgent specific
 .promptagent/

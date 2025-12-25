@@ -33,7 +33,13 @@ cd PromptAgent
 
 ### 2. 配置 Azure OpenAI
 
-編輯 `appsettings.json`，填入你的 Azure OpenAI 連線資訊：
+複製範本檔案並填入你的 Azure OpenAI 連線資訊：
+
+```bash
+cp appsettings.template.json appsettings.json
+```
+
+然後編輯 `appsettings.json`：
 
 ```json
 {
