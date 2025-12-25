@@ -708,3 +708,293 @@
 .temp-creative {
     color: #f59e0b !important;
 }
+
+/* ===================================
+   Guided Mode Styles
+   =================================== */
+
+/* Guided Mode Section */
+.guided-mode-section {
+    margin-top: 1.5rem;
+    padding-top: 1.5rem;
+    border-top: 1px solid rgba(255, 255, 255, 0.1);
+}
+
+.guided-mode-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    font-size: 1rem;
+    font-weight: 600;
+    color: #3b82f6;
+    margin-bottom: 0.5rem;
+}
+
+.mode-badge {
+    font-size: 0.65rem;
+    padding: 0.2rem 0.5rem;
+    background: linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(147, 51, 234, 0.3) 100%);
+    border-radius: 0.25rem;
+    color: #a78bfa;
+    font-weight: 500;
+    margin-left: 0.5rem;
+}
+
+.btn-guided {
+    width: 100%;
+    padding: 1rem;
+    background: linear-gradient(135deg, #3b82f6 0%, #9333ea 100%);
+    border: none;
+    border-radius: 0.75rem;
+    color: #fff;
+    font-size: 1.1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.75rem;
+}
+
+.btn-guided:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+}
+
+.btn-guided:disabled {
+    opacity: 0.7;
+    cursor: not-allowed;
+}
+
+/* Guided Feedback Card */
+.guided-feedback-card {
+    animation: slideIn 0.3s ease-out;
+}
+
+@keyframes slideIn {
+    from {
+        opacity: 0;
+        transform: translateY(-10px);
+    }
+
+    to {
+        opacity: 1;
+        transform: translateY(0);
+    }
+}
+
+.waiting-badge {
+    font-size: 0.75rem;
+    padding: 0.35rem 0.75rem;
+    background: rgba(251, 191, 36, 0.2);
+    color: #fbbf24;
+    border-radius: 1rem;
+    font-weight: 500;
+    animation: pulse 2s ease-in-out infinite;
+}
+
+@keyframes pulse {
+
+    0%,
+    100% {
+        opacity: 1;
+    }
+
+    50% {
+        opacity: 0.6;
+    }
+}
+
+.feedback-summary {
+    color: #a0a0a0;
+    font-size: 0.95rem;
+    line-height: 1.6;
+    margin-bottom: 1.5rem;
+}
+
+/* Clusters Grid */
+.clusters-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+    gap: 1rem;
+    margin-bottom: 1rem;
+}
+
+.cluster-card {
+    padding: 1rem;
+    background: rgba(0, 0, 0, 0.3);
+    border: 2px solid rgba(255, 255, 255, 0.1);
+    border-radius: 0.75rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.cluster-card:hover {
+    border-color: rgba(59, 130, 246, 0.4);
+    background: rgba(59, 130, 246, 0.1);
+}
+
+.cluster-card.selected {
+    border-color: #3b82f6;
+    background: rgba(59, 130, 246, 0.15);
+    box-shadow: 0 0 20px rgba(59, 130, 246, 0.2);
+}
+
+.cluster-header {
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 0.5rem;
+}
+
+.cluster-header input[type="radio"] {
+    width: 18px;
+    height: 18px;
+    accent-color: #3b82f6;
+}
+
+.cluster-name {
+    font-weight: 600;
+    color: #fff;
+    font-size: 1rem;
+}
+
+.cluster-description {
+    font-size: 0.85rem;
+    color: #888;
+    margin: 0 0 0.75rem 0;
+    line-height: 1.4;
+}
+
+.cluster-preview {
+    font-size: 0.8rem;
+    color: #666;
+    background: rgba(0, 0, 0, 0.3);
+    padding: 0.75rem;
+    border-radius: 0.5rem;
+    margin-bottom: 0.5rem;
+    max-height: 80px;
+    overflow: hidden;
+    font-family: 'Consolas', 'Monaco', monospace;
+    line-height: 1.4;
+}
+
+.cluster-indices {
+    font-size: 0.75rem;
+    color: #666;
+}
+
+/* Feedback Divider */
+.feedback-divider {
+    display: flex;
+    align-items: center;
+    margin: 1.5rem 0;
+    color: #666;
+    font-size: 0.85rem;
+}
+
+.feedback-divider::before,
+.feedback-divider::after {
+    content: '';
+    flex: 1;
+    height: 1px;
+    background: rgba(255, 255, 255, 0.1);
+}
+
+.feedback-divider span {
+    padding: 0 1rem;
+}
+
+/* Custom Feedback Section */
+.custom-feedback-section {
+    margin-bottom: 1rem;
+}
+
+.custom-feedback-section .form-control {
+    background: rgba(0, 0, 0, 0.4);
+}
+
+/* Suggested Directions */
+.suggested-directions {
+    display: flex;
+    flex-wrap: wrap;
+    align-items: center;
+    gap: 0.5rem;
+    margin-bottom: 1.5rem;
+}
+
+.directions-label {
+    font-size: 0.85rem;
+    color: #888;
+}
+
+.direction-chip {
+    font-size: 0.8rem;
+    padding: 0.4rem 0.75rem;
+    background: rgba(147, 51, 234, 0.15);
+    border: 1px solid rgba(147, 51, 234, 0.3);
+    border-radius: 1rem;
+    color: #a78bfa;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.direction-chip:hover {
+    background: rgba(147, 51, 234, 0.25);
+    border-color: rgba(147, 51, 234, 0.5);
+}
+
+/* Feedback Actions */
+.feedback-actions {
+    display: flex;
+    gap: 1rem;
+}
+
+.btn-continue {
+    flex: 1;
+    padding: 1rem;
+    background: linear-gradient(135deg, #3b82f6 0%, #9333ea 100%);
+    border: none;
+    border-radius: 0.75rem;
+    color: #fff;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 0.5rem;
+}
+
+.btn-continue:hover:not(:disabled) {
+    transform: translateY(-2px);
+    box-shadow: 0 8px 25px rgba(59, 130, 246, 0.4);
+}
+
+.btn-continue:disabled {
+    opacity: 0.5;
+    cursor: not-allowed;
+    transform: none;
+}
+
+.btn-finish {
+    padding: 1rem 1.5rem;
+    background: rgba(16, 185, 129, 0.15);
+    border: 1px solid rgba(16, 185, 129, 0.3);
+    border-radius: 0.75rem;
+    color: #10b981;
+    font-size: 1rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.2s ease;
+    display: flex;
+    align-items: center;
+    gap: 0.5rem;
+}
+
+.btn-finish:hover {
+    background: rgba(16, 185, 129, 0.25);
+    border-color: rgba(16, 185, 129, 0.5);
+}

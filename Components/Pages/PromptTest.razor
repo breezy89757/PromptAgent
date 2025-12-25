@@ -174,12 +174,128 @@
                             </div>
                         }
                     </div>
+
+                    <!-- 引導模式 -->
+                    <div class="guided-mode-section">
+                        <div class="guided-mode-header">
+                            <span>🎯</span>
+                            <span>引導模式</span>
+                            <span class="mode-badge">人機協作</span>
+                        </div>
+                        <p class="range-hint">每輪暫停讓您選擇偏好的回答風格，再繼續優化</p>
+                        <button class="btn-guided"
+                                @onclick="ExecuteGuidedModeAsync"
+                                disabled="@(isExecuting || waitingForFeedback)">
+                            @if (isExecuting && isGuidedMode && !waitingForFeedback)
+                            {
+                                <span class="spinner"></span>
+                                <span>執行中... 第 @guidedRound 輪</span>
+                            }
+                            else if (waitingForFeedback)
+                            {
+                                <span>⏸️</span>
+                                <span>等待您的選擇...</span>
+                            }
+                            else
+                            {
+                                <span>🎯</span>
+                                <span>啟動引導模式</span>
+                            }
+                        </button>
+                    </div>
                 </div>
             </div>
         </div>
 
         <!-- 右側: 結果區域 -->
         <div>
+            @if (waitingForFeedback && differenceAnalysis != null)
+            {
+                <!-- 引導模式反饋區 -->
+                <div class="test-card guided-feedback-card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header" style="background: linear-gradient(135deg, rgba(59, 130, 246, 0.3) 0%, rgba(147, 51, 234, 0.3) 100%);">
+                        <h2 class="card-title">
+                            <span>🎯</span>
+                            引導模式 - 第 @guidedRound 輪
+                        </h2>
+                        <span class="waiting-badge">等待您的選擇</span>
+                    </div>
+                    <div class="card-body">
+                        <p class="feedback-summary">@differenceAnalysis.Summary</p>
+                        
+                        <div class="clusters-grid">
+                            @foreach (var cluster in differenceAnalysis.Clusters)
+                            {
+                                <div class="cluster-card @(userFeedback.SelectedCluster == cluster.ClusterName ? "selected" : "")"
+                                     @onclick="() => SelectCluster(cluster.ClusterName)">
+                                    <div class="cluster-header">
+                                        <input type="radio" 
+                                               name="cluster-select"
+                                               checked="@(userFeedback.SelectedCluster == cluster.ClusterName)" />
+                                        <span class="cluster-name">@cluster.ClusterName</span>
+                                    </div>
+                                    <p class="cluster-description">@cluster.Description</p>
+                                    @if (!string.IsNullOrEmpty(cluster.PreviewContent))
+                                    {
+                                        <div class="cluster-preview">@cluster.PreviewContent</div>
+                                    }
+                                    <div class="cluster-indices">
+                                        回答 @string.Join(", ", cluster.ResponseIndices)
+                                    </div>
+                                </div>
+                            }
+                        </div>
+
+                        <div class="feedback-divider">
+                            <span>或</span>
+                        </div>
+
+                        <div class="custom-feedback-section">
+                            <label class="form-label">自訂方向：</label>
+                            <input type="text" 
+                                   class="form-control"
+                                   placeholder="例如：更正式、加表情符號、用繁體中文..."
+                                   @bind="userFeedback.CustomFeedback"
+                                   @onfocus="() => userFeedback.SelectedCluster = null" />
+                        </div>
+
+                        @if (differenceAnalysis.SuggestedDirections.Count > 0)
+                        {
+                            <div class="suggested-directions">
+                                <span class="directions-label">💡 AI 建議：</span>
+                                @foreach (var direction in differenceAnalysis.SuggestedDirections)
+                                {
+                                    <span class="direction-chip" @onclick="() => ApplySuggestion(direction)">
+                                        @direction
+                                    </span>
+                                }
+                            </div>
+                        }
+
+                        <div class="feedback-actions">
+                            <button class="btn-continue" 
+                                    @onclick="ContinueGuidedModeAsync"
+                                    disabled="@(!userFeedback.HasFeedback || isOptimizing)">
+                                @if (isOptimizing)
+                                {
+                                    <span class="spinner"></span>
+                                    <span>優化中...</span>
+                                }
+                                else
+                                {
+                                    <span>🚀</span>
+                                    <span>繼續下一輪</span>
+                                }
+                            </button>
+                            <button class="btn-finish" @onclick="FinishGuidedMode">
+                                <span>✓</span>
+                                <span>滿意，結束</span>
+                            </button>
+                        </div>
+                    </div>
+                </div>
+            }
+
             @if (smartModeHistory.Count > 0)
             {
                 <!-- 智慧修正歷史 -->
@@ -420,6 +536,16 @@
     
     // 用於取消非同步操作，防止元件銷毀後繼續執行
     private CancellationTokenSource? _cts;
+
+    // 引導模式
+    private bool isGuidedMode;
+    private bool waitingForFeedback;
+    private bool isOptimizing;
+    private int guidedRound;
+    private DifferenceAnalysis? differenceAnalysis;
+    private UserFeedback userFeedback = new();
+    private List<AgentResponse> currentResponses = [];
+    private List<(int Round, string Feedback)> guidedHistory = [];
 
     // 效能監控模型
     private class PerformanceMetrics
@@ -707,4 +833,153 @@
         <= 1.2f => "✨ 創意",
         _ => "🔥 高創意"
     };
+
+    #region 引導模式 (Guided Mode)
+
+    private async Task ExecuteGuidedModeAsync()
+    {
+        if (string.IsNullOrWhiteSpace(testCase.SystemPrompt) ||
+            string.IsNullOrWhiteSpace(testCase.Question))
+        {
+            return;
+        }
+
+        // 取消之前的操作並建立新的 CancellationTokenSource
+        _cts?.Cancel();
+        _cts = new CancellationTokenSource();
+        var token = _cts.Token;
+
+        // 初始化引導模式狀態
+        isExecuting = true;
+        isGuidedMode = true;
+        isSmartMode = false;
+        waitingForFeedback = false;
+        guidedRound = 1;
+        guidedHistory.Clear();
+        differenceAnalysis = null;
+        userFeedback = new UserFeedback();
+        testResult = null;
+        smartModeHistory.Clear();
+        StateHasChanged();
+
+        try
+        {
+            await ExecuteGuidedRoundAsync(token);
+        }
+        catch (OperationCanceledException)
+        {
+            // 操作已取消
+        }
+        catch (Exception ex)
+        {
+            testResult = new TestResult
+            {
+                TestCaseId = testCase.Id,
+                EvaluationReport = $"引導模式失敗: {ex.Message}",
+                Suggestions = ["請檢查 Azure OpenAI 連線設定是否正確"]
+            };
+            isExecuting = false;
+            isGuidedMode = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ExecuteGuidedRoundAsync(CancellationToken token)
+    {
+        completedCount = 0;
+        StateHasChanged();
+
+        // 執行測試
+        currentResponses = await AgentService.ExecuteParallelAsync(testCase, token);
+        completedCount = currentResponses.Count;
+
+        // 評估結果
+        testResult = await EvaluationService.EvaluateResultsAsync(testCase, currentResponses, token);
+        StateHasChanged();
+
+        // 分析回答差異
+        differenceAnalysis = await EvaluationService.AnalyzeResponseDifferencesAsync(testCase, currentResponses, token);
+        
+        // 進入等待反饋狀態
+        waitingForFeedback = true;
+        isExecuting = false;
+        userFeedback = new UserFeedback();
+        StateHasChanged();
+    }
+
+    private async Task ContinueGuidedModeAsync()
+    {
+        if (!userFeedback.HasFeedback) return;
+
+        _cts ??= new CancellationTokenSource();
+        var token = _cts.Token;
+
+        isOptimizing = true;
+        StateHasChanged();
+
+        try
+        {
+            // 記錄這輪的反饋
+            var feedbackText = userFeedback.SelectedCluster ?? userFeedback.CustomFeedback ?? "";
+            guidedHistory.Add((guidedRound, feedbackText));
+
+            // 根據反饋優化 Prompt
+            var optimizedPrompt = await EvaluationService.OptimizeWithFeedbackAsync(
+                testCase, currentResponses, userFeedback, token);
+            
+            testCase.SystemPrompt = optimizedPrompt;
+
+            // 進入下一輪
+            isOptimizing = false;
+            waitingForFeedback = false;
+            isExecuting = true;
+            guidedRound++;
+            StateHasChanged();
+
+            await ExecuteGuidedRoundAsync(token);
+        }
+        catch (OperationCanceledException)
+        {
+            // 操作已取消
+        }
+        catch (Exception ex)
+        {
+            testResult = new TestResult
+            {
+                TestCaseId = testCase.Id,
+                EvaluationReport = $"優化失敗: {ex.Message}",
+                Suggestions = ["請重試"]
+            };
+        }
+        finally
+        {
+            isOptimizing = false;
+            StateHasChanged();
+        }
+    }
+
+    private void FinishGuidedMode()
+    {
+        waitingForFeedback = false;
+        isGuidedMode = false;
+        isExecuting = false;
+        differenceAnalysis = null;
+        StateHasChanged();
+    }
+
+    private void SelectCluster(string clusterName)
+    {
+        userFeedback.SelectedCluster = clusterName;
+        userFeedback.CustomFeedback = null;
+        StateHasChanged();
+    }
+
+    private void ApplySuggestion(string suggestion)
+    {
+        userFeedback.SelectedCluster = null;
+        userFeedback.CustomFeedback = suggestion;
+        StateHasChanged();
+    }
+
+    #endregion
 }
