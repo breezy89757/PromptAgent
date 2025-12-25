@@ -1,0 +1,32 @@
+﻿<div class="sidebar">
+    <div class="sidebar-header">
+        <div class="logo">
+            <span class="logo-icon">⚡</span>
+            <span class="logo-text">PromptAgent</span>
+        </div>
+        <p class="tagline">Prompt 優化測試系統</p>
+    </div>
+
+    <input type="checkbox" title="Navigation menu" class="navbar-toggler" />
+
+    <nav class="nav-menu" onclick="document.querySelector('.navbar-toggler').click()">
+        <ul class="nav-list">
+            <li class="nav-item">
+                <NavLink class="nav-link" href="" Match="NavLinkMatch.All">
+                    <span class="nav-icon">🏠</span>
+                    <span class="nav-text">首頁</span>
+                </NavLink>
+            </li>
+            <li class="nav-item">
+                <NavLink class="nav-link" href="prompt-test">
+                    <span class="nav-icon">🧪</span>
+                    <span class="nav-text">Prompt 測試</span>
+                </NavLink>
+            </li>
+        </ul>
+    </nav>
+
+    <div class="sidebar-footer">
+        <div class="version-badge">v1.0.0</div>
+    </div>
+</div>

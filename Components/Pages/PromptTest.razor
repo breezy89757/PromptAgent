@@ -1,0 +1,351 @@
+@page "/prompt-test"
+@using PromptAgent.Models
+@using PromptAgent.Services
+@inject AgentService AgentService
+@inject EvaluationService EvaluationService
+@rendermode InteractiveServer
+
+<PageTitle>Prompt Test - PromptAgent</PageTitle>
+
+<div class="test-page">
+    <header class="page-header">
+        <h1 class="page-title">
+            <span class="title-icon">🧪</span>
+            Prompt 優化測試
+        </h1>
+    </header>
+
+    <div class="test-grid">
+        <!-- 左側: 輸入區域 -->
+        <div>
+            <div class="test-card">
+                <div class="card-header card-header-primary">
+                    <h2 class="card-title">
+                        <span>✏️</span>
+                        測試配置
+                    </h2>
+                    <div class="dropdown">
+                        <button class="dropdown-btn dropdown-toggle" type="button" data-bs-toggle="dropdown">
+                            ⚡ 載入範例
+                        </button>
+                        <ul class="dropdown-menu dropdown-menu-end">
+                            <li><h6 class="dropdown-header">選擇預設測試範例</h6></li>
+                            <li><button class="dropdown-item" type="button" @onclick="() => LoadExample(0)">📐 數學運算</button></li>
+                            <li><button class="dropdown-item" type="button" @onclick="() => LoadExample(1)">🧠 邏輯推理</button></li>
+                            <li><button class="dropdown-item" type="button" @onclick="() => LoadExample(2)">🌐 翻譯任務</button></li>
+                            <li><button class="dropdown-item" type="button" @onclick="() => LoadExample(3)">📝 文字摘要</button></li>
+                            <li><button class="dropdown-item" type="button" @onclick="() => LoadExample(4)">💻 程式碼生成</button></li>
+                        </ul>
+                    </div>
+                </div>
+                <div class="card-body">
+                    <div class="form-group">
+                        <label class="form-label">System Prompt (Instructions)</label>
+                        <textarea class="form-control"
+                                  rows="6"
+                                  placeholder="輸入系統提示詞，例如：你是一個專業的翻譯助手..."
+                                  @bind="testCase.SystemPrompt"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">測試問題</label>
+                        <textarea class="form-control"
+                                  rows="3"
+                                  placeholder="輸入要測試的問題..."
+                                  @bind="testCase.Question"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">預期答案</label>
+                        <textarea class="form-control"
+                                  rows="3"
+                                  placeholder="輸入預期的答案（用於評估正確性）..."
+                                  @bind="testCase.ExpectedAnswer"></textarea>
+                    </div>
+
+                    <div class="form-group">
+                        <label class="form-label">
+                            執行次數: <span class="range-value">@testCase.ExecutionCount</span>
+                        </label>
+                        <div class="range-container">
+                            <input type="range"
+                                   class="form-range"
+                                   min="1"
+                                   max="10"
+                                   @bind="testCase.ExecutionCount" />
+                        </div>
+                        <p class="range-hint">執行多次以測試穩定性 (建議 3-5 次)</p>
+                    </div>
+
+                    <button class="btn-execute"
+                            @onclick="ExecuteTestAsync"
+                            disabled="@isExecuting">
+                        @if (isExecuting)
+                        {
+                            <span class="spinner"></span>
+                            <span>執行中... (@completedCount/@testCase.ExecutionCount)</span>
+                        }
+                        else
+                        {
+                            <span>▶️</span>
+                            <span>開始測試</span>
+                        }
+                    </button>
+                </div>
+            </div>
+        </div>
+
+        <!-- 右側: 結果區域 -->
+        <div>
+            @if (testResult != null)
+            {
+                <!-- 評分卡片 -->
+                <div class="test-card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header card-header-success">
+                        <h2 class="card-title">
+                            <span>📊</span>
+                            評估結果
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="score-grid">
+                            <div class="score-item">
+                                <div class="score-value @GetScoreClass(testResult.StabilityScore)">
+                                    @testResult.StabilityScore
+                                </div>
+                                <div class="score-label">穩定性</div>
+                                <div class="score-bar">
+                                    <div class="score-bar-fill @GetScoreClass(testResult.StabilityScore)"
+                                         style="width: @(testResult.StabilityScore)%"></div>
+                                </div>
+                            </div>
+                            <div class="score-item">
+                                <div class="score-value @GetScoreClass(testResult.CorrectnessScore)">
+                                    @testResult.CorrectnessScore
+                                </div>
+                                <div class="score-label">正確性</div>
+                                <div class="score-bar">
+                                    <div class="score-bar-fill @GetScoreClass(testResult.CorrectnessScore)"
+                                         style="width: @(testResult.CorrectnessScore)%"></div>
+                                </div>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 優化建議 -->
+                @if (testResult.Suggestions.Count > 0)
+                {
+                    <div class="test-card" style="margin-bottom: 1.5rem;">
+                        <div class="card-header card-header-warning">
+                            <h2 class="card-title">
+                                <span>💡</span>
+                                優化建議
+                            </h2>
+                            @if (!string.IsNullOrEmpty(testResult.OptimizedPrompt))
+                            {
+                                <button class="btn-accept" @onclick="AcceptSuggestions">
+                                    ✓ 一鍵接受建議
+                                </button>
+                            }
+                        </div>
+                        <div class="card-body">
+                            <ul class="suggestions-list">
+                                @foreach (var suggestion in testResult.Suggestions)
+                                {
+                                    <li class="suggestion-item">@suggestion</li>
+                                }
+                            </ul>
+                            @if (!string.IsNullOrEmpty(testResult.OptimizedPrompt))
+                            {
+                                <div class="optimized-prompt">
+                                    <div class="optimized-label">建議的優化後 Prompt：</div>
+                                    <div class="report-content">@testResult.OptimizedPrompt</div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- 詳細報告 -->
+                <div class="test-card" style="margin-bottom: 1.5rem;">
+                    <div class="card-header card-header-info">
+                        <h2 class="card-title">
+                            <span>📄</span>
+                            詳細評估報告
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="report-content">@testResult.EvaluationReport</div>
+                    </div>
+                </div>
+
+                <!-- 各次執行結果 -->
+                <div class="test-card">
+                    <div class="card-header" style="background: rgba(0,0,0,0.3);">
+                        <h2 class="card-title">
+                            <span>📋</span>
+                            各次執行結果
+                        </h2>
+                    </div>
+                    <div class="accordion-container">
+                        @foreach (var response in testResult.Responses)
+                        {
+                            var collapseId = $"response-{response.ExecutionIndex}";
+                            <div class="accordion-item">
+                                <div class="accordion-header" data-bs-toggle="collapse" data-bs-target="#@collapseId">
+                                    <span class="status-badge @(response.IsSuccess ? "success" : "error")">
+                                        @(response.IsSuccess ? "成功" : "失敗")
+                                    </span>
+                                    <span style="margin-left: 0.75rem; flex: 1;">第 @response.ExecutionIndex 次執行</span>
+                                    <span style="color: #888; font-size: 0.85rem;">@response.ExecutionTimeMs ms</span>
+                                </div>
+                                <div id="@collapseId" class="collapse">
+                                    <div class="accordion-content">
+                                        @if (response.IsSuccess)
+                                        {
+                                            <div class="response-content">@response.Content</div>
+                                        }
+                                        else
+                                        {
+                                            <div style="color: #ef4444;">@response.ErrorMessage</div>
+                                        }
+                                    </div>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+            else if (!isExecuting)
+            {
+                <!-- 空狀態 -->
+                <div class="test-card">
+                    <div class="empty-state">
+                        <div class="empty-icon">📥</div>
+                        <h3 class="empty-title">尚無測試結果</h3>
+                        <p class="empty-hint">
+                            填寫左側的測試配置，然後點擊「開始測試」按鈕<br />
+                            💡 提示：點擊「載入範例」快速開始
+                        </p>
+                    </div>
+                </div>
+            }
+        </div>
+    </div>
+</div>
+
+@code {
+    private TestCase testCase = new();
+    private TestResult? testResult;
+    private bool isExecuting;
+    private int completedCount;
+
+    // 預設測試範例
+    private static readonly List<TestCase> Examples =
+    [
+        // 數學運算
+        new TestCase
+        {
+            SystemPrompt = "你是一個數學助教，回答需包含完整的計算過程。請使用以下格式：\n1. 設定變數\n2. 列出方程式\n3. 逐步求解\n4. 最終答案",
+            Question = "如果一個數字的三倍加上5等於20，這個數字是多少？",
+            ExpectedAnswer = "設數字為 x\n方程式：3x + 5 = 20\n解：3x = 15 → x = 5\n答案：5"
+        },
+        // 邏輯推理
+        new TestCase
+        {
+            SystemPrompt = "你是一個邏輯推理專家。請分析問題，列出所有已知條件，逐步推導，並給出明確的結論。",
+            Question = "小明比小華高，小華比小李高，小李比小張高。請問誰最高？誰最矮？",
+            ExpectedAnswer = "已知條件：小明 > 小華 > 小李 > 小張\n結論：小明最高，小張最矮"
+        },
+        // 翻譯任務
+        new TestCase
+        {
+            SystemPrompt = "你是一個專業的翻譯助手。請將使用者輸入的內容翻譯成繁體中文，保持原文的語氣和風格。",
+            Question = "Please translate: 'The quick brown fox jumps over the lazy dog.'",
+            ExpectedAnswer = "敏捷的棕色狐狸跳過了懶惰的狗。"
+        },
+        // 文字摘要
+        new TestCase
+        {
+            SystemPrompt = "你是一個文字摘要專家。請用3個重點總結使用者提供的內容，每個重點不超過20個字。",
+            Question = "人工智慧（AI）是計算機科學的一個分支，它試圖理解智慧的實質，並生產出一種新的能以類似於人類智慧的方式作出反應的智慧機器。該領域的研究包括機器人、語言識別、圖像識別、自然語言處理和專家系統等。",
+            ExpectedAnswer = "1. AI是計算機科學的分支\n2. 目標是創造類人智慧的機器\n3. 包含機器人、語言識別等領域"
+        },
+        // 程式碼生成
+        new TestCase
+        {
+            SystemPrompt = "你是一個程式碼助手。請用簡潔的程式碼解決問題，並加上必要的註解說明。使用 Python 語言。",
+            Question = "寫一個函式計算費氏數列的第 n 項",
+            ExpectedAnswer = "def fibonacci(n):\n    if n <= 1:\n        return n\n    return fibonacci(n-1) + fibonacci(n-2)"
+        }
+    ];
+
+    private void LoadExample(int index)
+    {
+        if (index >= 0 && index < Examples.Count)
+        {
+            var example = Examples[index];
+            testCase.SystemPrompt = example.SystemPrompt;
+            testCase.Question = example.Question;
+            testCase.ExpectedAnswer = example.ExpectedAnswer;
+            testResult = null;
+            StateHasChanged();
+        }
+    }
+
+    private void AcceptSuggestions()
+    {
+        if (testResult?.OptimizedPrompt != null)
+        {
+            testCase.SystemPrompt = testResult.OptimizedPrompt;
+            StateHasChanged();
+        }
+    }
+
+    private async Task ExecuteTestAsync()
+    {
+        if (string.IsNullOrWhiteSpace(testCase.SystemPrompt) ||
+            string.IsNullOrWhiteSpace(testCase.Question))
+        {
+            return;
+        }
+
+        isExecuting = true;
+        completedCount = 0;
+        testResult = null;
+        StateHasChanged();
+
+        try
+        {
+            // 平行執行多個 Agent
+            var responses = await AgentService.ExecuteParallelAsync(testCase);
+            completedCount = responses.Count;
+            StateHasChanged();
+
+            // 使用評估服務分析結果
+            testResult = await EvaluationService.EvaluateResultsAsync(testCase, responses);
+        }
+        catch (Exception ex)
+        {
+            testResult = new TestResult
+            {
+                TestCaseId = testCase.Id,
+                EvaluationReport = $"執行失敗: {ex.Message}",
+                Suggestions = ["請檢查 Azure OpenAI 連線設定是否正確"]
+            };
+        }
+        finally
+        {
+            isExecuting = false;
+            StateHasChanged();
+        }
+    }
+
+    private static string GetScoreClass(int score) => score switch
+    {
+        >= 80 => "success",
+        >= 60 => "warning",
+        _ => "danger"
+    };
+}

@@ -1,0 +1,69 @@
+/* ===================================
+   Main Layout Styles
+   =================================== */
+
+.page {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    min-height: 100vh;
+    background: #0f0f23;
+}
+
+main {
+    flex: 1;
+    overflow-y: auto;
+}
+
+.sidebar {
+    background: linear-gradient(180deg, #1a1a2e 0%, #16213e 50%, #0f0f23 100%);
+}
+
+.content {
+    padding: 0;
+    margin: 0;
+}
+
+@media (min-width: 641px) {
+    .page {
+        flex-direction: row;
+    }
+
+    .sidebar {
+        width: 260px;
+        height: 100vh;
+        position: sticky;
+        top: 0;
+        flex-shrink: 0;
+    }
+
+    main {
+        flex: 1;
+        height: 100vh;
+        overflow-y: auto;
+    }
+}
+
+/* Error UI */
+#blazor-error-ui {
+    color-scheme: light only;
+    background: #ff6b6b;
+    color: white;
+    bottom: 0;
+    box-shadow: 0 -4px 20px rgba(0, 0, 0, 0.3);
+    box-sizing: border-box;
+    display: none;
+    left: 0;
+    padding: 0.75rem 1.5rem;
+    position: fixed;
+    width: 100%;
+    z-index: 1000;
+    border-radius: 0.5rem 0.5rem 0 0;
+}
+
+#blazor-error-ui .dismiss {
+    cursor: pointer;
+    position: absolute;
+    right: 1rem;
+    top: 0.5rem;
+}
