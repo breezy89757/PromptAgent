@@ -12,10 +12,23 @@
 - 🧠 **AI 智慧評估** - 由更強的 AI 模型分析結果，給出專業評估報告
 - ✨ **一鍵優化建議** - 自動生成優化後的 Prompt，一鍵套用立即改善效果
 - 🎲 **AI 生成範例** - 使用 LLM 動態生成測試範例，支援數學、邏輯、翻譯、程式碼等類別
+- 🎯 **引導模式** - 人機協作優化，每輪暫停讓您選擇偏好的回答風格
 
 ## 📸 截圖
 
-![PromptAgent Screenshot](docs/screenshot.png)
+### 首頁
+![Home Page](docs/home_page.png)
+
+### Prompt 測試頁面
+![Prompt Test Page](docs/prompt_test_page.png)
+
+## 🎮 三種測試模式
+
+| 模式 | 說明 | 適用場景 |
+|------|------|----------|
+| ▶️ **一般測試** | 單次執行 + AI 評估 | 快速驗證 Prompt 效果 |
+| 🚀 **智慧修正** | 全自動多輪優化 | 信任 AI 判斷，自動迭代 |
+| 🎯 **引導模式** | 每輪暫停，用戶參與決策 | 需要精確控制優化方向 |
 
 ## 🛠️ 環境需求
 
@@ -71,26 +84,39 @@ dotnet run
 ```
 PromptAgent/
 ├── Models/
-│   ├── TestCase.cs          # 測試案例模型
-│   └── TestResult.cs        # 測試結果模型
+│   ├── TestCase.cs              # 測試案例模型
+│   ├── TestResult.cs            # 測試結果模型
+│   └── GuidedModeModels.cs      # 引導模式模型
 ├── Services/
-│   ├── AgentService.cs           # Agent 管理服務 (Task.WhenAll 平行執行)
-│   ├── EvaluationService.cs      # 評估服務 (使用更強模型分析)
-│   └── ExampleGeneratorService.cs # LLM 驅動的範例生成服務
+│   ├── AgentService.cs          # Agent 管理服務 (平行執行)
+│   ├── EvaluationService.cs     # 評估服務 (分析 + 引導模式)
+│   └── ExampleGeneratorService.cs # LLM 驅動的範例生成
 ├── Components/
-│   ├── Layout/              # 版面配置
-│   └── Pages/               # 頁面元件
-└── appsettings.json         # 配置檔案
+│   ├── Layout/                  # 版面配置
+│   └── Pages/                   # 頁面元件
+└── appsettings.json             # 配置檔案
 ```
 
 ## 🎯 使用方法
 
-1. 點擊類別按鈕（🧮 數學、🧩 邏輯、🌐 翻譯、💻 程式）讓 AI 自動生成範例，或自行輸入
+### 一般測試
+1. 點擊類別按鈕（🧮 數學、🧩 邏輯、🌐 翻譯、💻 程式）讓 AI 自動生成範例
 2. 填寫 **System Prompt**、**測試問題**、**預期答案**
-3. 選擇 **執行次數**（1-10 次，建議 3-5 次）
+3. 選擇 **執行次數**（建議 3-5 次）
 4. 點擊「**開始測試**」
-5. 查看 **穩定性** 和 **正確性** 評分
-6. 若有優化建議，可點擊「**一鍵接受建議**」套用
+5. 查看評分和優化建議
+
+### 智慧修正模式
+1. 設定優化輪數和目標分數
+2. 點擊「**啟動智慧修正**」
+3. 系統自動多輪迭代優化直到達標
+
+### 引導模式
+1. 點擊「**🎯 啟動引導模式**」
+2. 第一輪執行後，AI 會分析回答風格並分群
+3. 選擇您偏好的風格，或輸入自訂反饋
+4. 點擊「繼續下一輪」繼續優化
+5. 滿意後點擊「滿意，結束」
 
 ## 🔧 技術架構
 
@@ -101,8 +127,10 @@ flowchart TD
     AS --> |Task.WhenAll| A2[Agent 2]
     AS --> |Task.WhenAll| AN[Agent N]
     A1 & A2 & AN --> ES[EvaluationService]
-    ES --> |分析結果| Report[評估報告 + 優化建議]
+    ES --> |分析結果| Report[評估報告]
+    ES --> |引導模式| GM[回答分群 + 用戶選擇]
     Report --> UI
+    GM --> UI
 ```
 
 ## 📝 授權

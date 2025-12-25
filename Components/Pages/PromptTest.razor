@@ -17,53 +17,64 @@
         </h1>
     </header>
 
-    <div class="test-grid">
+    <div class="test-grid @(testResult != null && !isConfigExpanded ? "results-focused" : "")">
         <!-- 左側: 輸入區域 -->
         <div>
-            <div class="test-card">
-                <div class="card-header card-header-primary">
+            <div class="test-card config-card @(testResult != null && !isConfigExpanded ? "collapsed" : "")">
+                <div class="card-header card-header-primary" 
+                     style="cursor: pointer;"
+                     @onclick="() => isConfigExpanded = !isConfigExpanded">
                     <h2 class="card-title">
+                        <span>@(testResult != null && !isConfigExpanded ? "▶" : "▼")</span>
                         <span>✏️</span>
                         測試配置
+                        @if (testResult != null && !isConfigExpanded)
+                        {
+                            <span class="config-preview">@TruncateText(testCase.SystemPrompt, 30)</span>
+                        }
                     </h2>
-                    <div class="dropdown">
-                        <button class="dropdown-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" disabled="@isGeneratingExample">
-                            @if (isGeneratingExample)
-                            {
-                                <span class="spinner" style="width: 14px; height: 14px;"></span>
-                                <span>生成中...</span>
-                            }
-                            else
-                            {
-                                <span>✨ AI 生成範例</span>
-                            }
-                        </button>
-                        <ul class="dropdown-menu dropdown-menu-end">
-                            <li><h6 class="dropdown-header">選擇分類，AI 隨機生成範例</h6></li>
-                            @foreach (var category in ExampleGeneratorService.Categories)
-                            {
-                                <li>
-                                    <button class="dropdown-item" type="button" @onclick="() => GenerateExample(category.Id)">
-                                        @category.Name
-                                    </button>
-                                </li>
-                            }
-                        </ul>
+                    <div class="header-actions" @onclick:stopPropagation="true">
+                        <div class="dropdown">
+                            <button class="dropdown-btn dropdown-toggle" type="button" data-bs-toggle="dropdown" disabled="@isGeneratingExample">
+                                @if (isGeneratingExample)
+                                {
+                                    <span class="spinner" style="width: 14px; height: 14px;"></span>
+                                    <span>生成中...</span>
+                                }
+                                else
+                                {
+                                    <span>✨ AI 生成範例</span>
+                                }
+                            </button>
+                            <ul class="dropdown-menu dropdown-menu-end">
+                                <li><h6 class="dropdown-header">選擇分類，AI 隨機生成範例</h6></li>
+                                @foreach (var category in ExampleGeneratorService.Categories)
+                                {
+                                    <li>
+                                        <button class="dropdown-item" type="button" @onclick="() => GenerateExample(category.Id)">
+                                            @category.Name
+                                        </button>
+                                    </li>
+                                }
+                            </ul>
+                        </div>
                     </div>
                 </div>
+                @if (isConfigExpanded || testResult == null)
+                {
                 <div class="card-body">
                     <div class="form-group">
-                        <label class="form-label">System Prompt (Instructions)</label>
+                        <label class="form-label">System Prompt</label>
                         <textarea class="form-control"
-                                  rows="6"
-                                  placeholder="輸入系統提示詞，例如：你是一個專業的翻譯助手..."
+                                  rows="3"
+                                  placeholder="輸入系統提示詞..."
                                   @bind="testCase.SystemPrompt"></textarea>
                     </div>
 
                     <div class="form-group">
                         <label class="form-label">測試問題</label>
                         <textarea class="form-control"
-                                  rows="3"
+                                  rows="2"
                                   placeholder="輸入要測試的問題..."
                                   @bind="testCase.Question"></textarea>
                     </div>
@@ -71,8 +82,8 @@
                     <div class="form-group">
                         <label class="form-label">預期答案</label>
                         <textarea class="form-control"
-                                  rows="3"
-                                  placeholder="輸入預期的答案（用於評估正確性）..."
+                                  rows="2"
+                                  placeholder="輸入預期答案..."
                                   @bind="testCase.ExpectedAnswer"></textarea>
                     </div>
 
@@ -204,7 +215,201 @@
                         </button>
                     </div>
                 </div>
+                }
             </div>
+
+            @* 當配置縮起來時，結果顯示在這裡 (左側下方) *@
+            @if (testResult != null && !isConfigExpanded)
+            {
+                @if (smartModeHistory.Count > 0)
+                {
+                    <!-- 智慧修正歷史 -->
+                    <div class="test-card inline-results" style="margin-top: 1rem;">
+                        <div class="card-header" style="background: linear-gradient(135deg, rgba(236, 72, 153, 0.2) 0%, rgba(251, 146, 60, 0.2) 100%);">
+                            <h2 class="card-title">
+                                <span>📈</span>
+                                智慧修正歷史 (@smartModeHistory.Count 輪)
+                            </h2>
+                            @if (performanceMetrics != null)
+                            {
+                                <span class="perf-badge">∱ @performanceMetrics.TotalTimeMs ms</span>
+                            }
+                        </div>
+                        <div class="card-body">
+                            @if (performanceMetrics != null)
+                            {
+                                <div class="perf-metrics">
+                                    <div class="perf-item">
+                                        <span class="perf-label">總耗時</span>
+                                        <span class="perf-value">@performanceMetrics.TotalTimeMs ms</span>
+                                    </div>
+                                    <div class="perf-item">
+                                        <span class="perf-label">平均每輪</span>
+                                        <span class="perf-value">@performanceMetrics.AvgRoundTimeMs ms</span>
+                                    </div>
+                                    <div class="perf-item">
+                                        <span class="perf-label">API 呼叫</span>
+                                        <span class="perf-value">@performanceMetrics.TotalApiCalls 次</span>
+                                    </div>
+                                    <div class="perf-item">
+                                        <span class="perf-label">平均響應</span>
+                                        <span class="perf-value">@performanceMetrics.AvgApiTimeMs ms</span>
+                                    </div>
+                                </div>
+                            }
+                            <div class="history-timeline">
+                                @foreach (var (round, result, metrics) in smartModeHistory.Select((r, i) => (i + 1, r, roundMetrics.Count > i ? roundMetrics[i] : null)))
+                                {
+                                    <div class="history-item">
+                                        <div class="history-round">第 @round 輪</div>
+                                        <div class="history-scores">
+                                            <span class="history-score @GetScoreClass(result.StabilityScore)">
+                                                穩定: @result.StabilityScore
+                                            </span>
+                                            <span class="history-score @GetScoreClass(result.CorrectnessScore)">
+                                                正確: @result.CorrectnessScore
+                                            </span>
+                                            @if (metrics != null)
+                                            {
+                                                <span class="history-time">@metrics.RoundTimeMs ms</span>
+                                            }
+                                        </div>
+                                    </div>
+                                }
+                            </div>
+                            @if (smartModeHistory.Count >= 2)
+                            {
+                                var first = smartModeHistory.First();
+                                var last = smartModeHistory.Last();
+                                var stabilityChange = last.StabilityScore - first.StabilityScore;
+                                var correctnessChange = last.CorrectnessScore - first.CorrectnessScore;
+                                <div class="history-summary">
+                                    <span>總變化:</span>
+                                    <span class="@(stabilityChange >= 0 ? "text-success" : "text-danger")">
+                                        穩定性 @(stabilityChange >= 0 ? "+" : "")@stabilityChange
+                                    </span>
+                                    <span class="@(correctnessChange >= 0 ? "text-success" : "text-danger")">
+                                        正確性 @(correctnessChange >= 0 ? "+" : "")@correctnessChange
+                                    </span>
+                                </div>
+                            }
+                            @if (stoppedEarly)
+                            {
+                                <div class="early-stop-notice">
+                                    ✅ 已於第 @currentRound 輪達到目標分數 (@targetScore)，提前停止
+                                </div>
+                            }
+                        </div>
+                    </div>
+                }
+
+                <!-- 評分卡片 -->
+                <div class="test-card inline-results" style="margin-top: 1rem;">
+                    <div class="card-header card-header-success">
+                        <h2 class="card-title">
+                            <span>📊</span>
+                            評估結果
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="score-grid">
+                            <div class="score-item">
+                                <div class="score-value @GetScoreClass(testResult.StabilityScore)">@testResult.StabilityScore</div>
+                                <div class="score-label">穩定性</div>
+                                <div class="score-bar">
+                                    <div class="score-bar-fill @GetScoreClass(testResult.StabilityScore)" style="width: @(testResult.StabilityScore)%"></div>
+                                </div>
+                            </div>
+                            <div class="score-item">
+                                <div class="score-value @GetScoreClass(testResult.CorrectnessScore)">@testResult.CorrectnessScore</div>
+                                <div class="score-label">正確性</div>
+                                <div class="score-bar">
+                                    <div class="score-bar-fill @GetScoreClass(testResult.CorrectnessScore)" style="width: @(testResult.CorrectnessScore)%"></div>
+                                </div>
+                            </div>
+                        </div>
+
+                        @if (testResult.Suggestions.Count > 0)
+                        {
+                            <div style="margin-top: 1.5rem;">
+                                <h4 style="color: #f59e0b; margin-bottom: 0.75rem;">💡 優化建議</h4>
+                                <ul class="suggestions-list">
+                                    @foreach (var suggestion in testResult.Suggestions)
+                                    {
+                                        <li class="suggestion-item">@suggestion</li>
+                                    }
+                                </ul>
+                            </div>
+                        }
+
+                        @if (!string.IsNullOrEmpty(testResult.OptimizedPrompt))
+                        {
+                            <div class="optimized-prompt">
+                                <div style="display: flex; justify-content: space-between; align-items: center; margin-bottom: 0.75rem;">
+                                    <span class="optimized-label">建議的優化後 Prompt：</span>
+                                    <button class="btn-accept" @onclick="AcceptSuggestions">✓ 一鍵接受建議</button>
+                                </div>
+                                <div class="report-content" style="max-height: 150px;">@testResult.OptimizedPrompt</div>
+                            </div>
+                        }
+                    </div>
+                </div>
+
+                <!-- 各次執行結果 -->
+                <div class="test-card inline-results" style="margin-top: 1rem;">
+                    <div class="card-header" style="background: rgba(0,0,0,0.3);">
+                        <h2 class="card-title">
+                            <span>📋</span>
+                            各次執行結果 (@testResult.Responses.Count 次)
+                        </h2>
+                    </div>
+                    <div class="card-body">
+                        <div class="responses-grid">
+                            @foreach (var response in testResult.Responses)
+                            {
+                                <div class="response-card @(response.IsSuccess ? "" : "error")">
+                                    <div class="response-card-header">
+                                        <span class="status-badge @(response.IsSuccess ? "success" : "error")">
+                                            @(response.IsSuccess ? "✓" : "✗")
+                                        </span>
+                                        <span class="response-title">第 @response.ExecutionIndex 次</span>
+                                        <span class="response-time">@response.ExecutionTimeMs ms</span>
+                                    </div>
+                                    <div class="response-card-body">
+                                        @if (response.IsSuccess)
+                                        {
+                                            <div class="response-text">@response.Content</div>
+                                        }
+                                        else
+                                        {
+                                            <div class="response-error">@response.ErrorMessage</div>
+                                        }
+                                    </div>
+                                </div>
+                            }
+                        </div>
+                    </div>
+                </div>
+
+                <!-- 詳細評估報告 (可折疊) -->
+                <div class="test-card inline-results" style="margin-top: 1rem;">
+                    <div class="card-header card-header-info" 
+                         style="cursor: pointer;" 
+                         @onclick="() => showDetailedReport = !showDetailedReport">
+                        <h2 class="card-title">
+                            <span>📄</span>
+                            詳細評估報告
+                            <span class="expand-icon">@(showDetailedReport ? "▼" : "▶")</span>
+                        </h2>
+                    </div>
+                    @if (showDetailedReport)
+                    {
+                        <div class="card-body">
+                            <div class="report-content">@testResult.EvaluationReport</div>
+                        </div>
+                    }
+                </div>
+            }
         </div>
 
         <!-- 右側: 結果區域 -->
@@ -442,54 +647,59 @@
                     </div>
                 }
 
-                <!-- 詳細報告 -->
+                <!-- 各次執行結果 (直接展示) -->
                 <div class="test-card" style="margin-bottom: 1.5rem;">
-                    <div class="card-header card-header-info">
-                        <h2 class="card-title">
-                            <span>📄</span>
-                            詳細評估報告
-                        </h2>
-                    </div>
-                    <div class="card-body">
-                        <div class="report-content">@testResult.EvaluationReport</div>
-                    </div>
-                </div>
-
-                <!-- 各次執行結果 -->
-                <div class="test-card">
                     <div class="card-header" style="background: rgba(0,0,0,0.3);">
                         <h2 class="card-title">
                             <span>📋</span>
-                            各次執行結果
+                            各次執行結果 (@testResult.Responses.Count 次)
                         </h2>
                     </div>
-                    <div class="accordion-container">
-                        @foreach (var response in testResult.Responses)
-                        {
-                            var collapseId = $"response-{response.ExecutionIndex}";
-                            <div class="accordion-item">
-                                <div class="accordion-header" data-bs-toggle="collapse" data-bs-target="#@collapseId">
-                                    <span class="status-badge @(response.IsSuccess ? "success" : "error")">
-                                        @(response.IsSuccess ? "成功" : "失敗")
-                                    </span>
-                                    <span style="margin-left: 0.75rem; flex: 1;">第 @response.ExecutionIndex 次執行</span>
-                                    <span style="color: #888; font-size: 0.85rem;">@response.ExecutionTimeMs ms</span>
-                                </div>
-                                <div id="@collapseId" class="collapse">
-                                    <div class="accordion-content">
+                    <div class="card-body">
+                        <div class="responses-grid">
+                            @foreach (var response in testResult.Responses)
+                            {
+                                <div class="response-card @(response.IsSuccess ? "" : "error")">
+                                    <div class="response-card-header">
+                                        <span class="status-badge @(response.IsSuccess ? "success" : "error")">
+                                            @(response.IsSuccess ? "✓" : "✗")
+                                        </span>
+                                        <span class="response-title">第 @response.ExecutionIndex 次</span>
+                                        <span class="response-time">@response.ExecutionTimeMs ms</span>
+                                    </div>
+                                    <div class="response-card-body">
                                         @if (response.IsSuccess)
                                         {
-                                            <div class="response-content">@response.Content</div>
+                                            <div class="response-text">@response.Content</div>
                                         }
                                         else
                                         {
-                                            <div style="color: #ef4444;">@response.ErrorMessage</div>
+                                            <div class="response-error">@response.ErrorMessage</div>
                                         }
                                     </div>
                                 </div>
-                            </div>
-                        }
+                            }
+                        </div>
                     </div>
+                </div>
+
+                <!-- 詳細報告 (可折疊，因為通常較長) -->
+                <div class="test-card">
+                    <div class="card-header card-header-info" 
+                         style="cursor: pointer;" 
+                         @onclick="() => showDetailedReport = !showDetailedReport">
+                        <h2 class="card-title">
+                            <span>📄</span>
+                            詳細評估報告
+                            <span class="expand-icon">@(showDetailedReport ? "▼" : "▶")</span>
+                        </h2>
+                    </div>
+                    @if (showDetailedReport)
+                    {
+                        <div class="card-body">
+                            <div class="report-content">@testResult.EvaluationReport</div>
+                        </div>
+                    }
                 </div>
             }
             else if (!isExecuting)
@@ -546,6 +756,10 @@
     private UserFeedback userFeedback = new();
     private List<AgentResponse> currentResponses = [];
     private List<(int Round, string Feedback)> guidedHistory = [];
+
+    // UI 狀態
+    private bool showDetailedReport = false;
+    private bool isConfigExpanded = true;
 
     // 效能監控模型
     private class PerformanceMetrics
@@ -630,6 +844,7 @@
             StateHasChanged();
 
             testResult = await EvaluationService.EvaluateResultsAsync(testCase, responses, token);
+            isConfigExpanded = false; // 測試完成後自動縮合配置區
         }
         catch (OperationCanceledException)
         {
@@ -643,6 +858,7 @@
                 EvaluationReport = $"執行失敗: {ex.Message}",
                 Suggestions = ["請檢查 Azure OpenAI 連線設定是否正確"]
             };
+            isConfigExpanded = false; // 即使失敗也縮合
         }
         finally
         {
@@ -802,6 +1018,7 @@
         {
             isExecuting = false;
             isSmartMode = false;
+            isConfigExpanded = false; // 智慧模式完成後自動縮合配置區
             StateHasChanged();
         }
     }
@@ -982,4 +1199,11 @@
     }
 
     #endregion
+
+    // Helper Methods
+    private static string TruncateText(string? text, int maxLength)
+    {
+        if (string.IsNullOrEmpty(text)) return "";
+        return text.Length <= maxLength ? text : text[..maxLength] + "...";
+    }
 }
