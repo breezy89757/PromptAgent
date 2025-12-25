@@ -3,6 +3,7 @@ using System.Text.Json;
 using Azure;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.Options;
+using OpenAI;
 using OpenAI.Chat;
 using PromptAgent.Models;
 
@@ -15,7 +16,6 @@ public class EvaluationService
 {
     private readonly AzureOpenAISettings _settings;
     private readonly ILogger<EvaluationService> _logger;
-    private readonly AzureOpenAIClient _client;
     private readonly Lazy<ChatClient> _chatClient;
     
     // 快取 JsonSerializerOptions 避免重複建立
@@ -29,25 +29,35 @@ public class EvaluationService
         _settings = settings.Value;
         _logger = logger;
 
-        // 使用評估者專用的 endpoint 和 API key (如果有配置)
-        var endpoint = string.IsNullOrEmpty(_settings.EvaluatorEndpoint)
-            ? _settings.Endpoint
-            : _settings.EvaluatorEndpoint;
-        var apiKey = string.IsNullOrEmpty(_settings.EvaluatorApiKey)
-            ? _settings.ApiKey
-            : _settings.EvaluatorApiKey;
-
-        _client = new AzureOpenAIClient(
-            new Uri(endpoint),
-            new AzureKeyCredential(apiKey));
-        
         // 快取 ChatClient 實例以重用連線
         _chatClient = new Lazy<ChatClient>(() => 
         {
+            // 使用評估者專用的 endpoint 和 API key (如果有配置)
+            var endpoint = string.IsNullOrEmpty(_settings.EvaluatorEndpoint)
+                ? _settings.Endpoint
+                : _settings.EvaluatorEndpoint;
+            var apiKey = string.IsNullOrEmpty(_settings.EvaluatorApiKey)
+                ? _settings.ApiKey
+                : _settings.EvaluatorApiKey;
             var deploymentName = string.IsNullOrEmpty(_settings.EvaluatorDeploymentName)
                 ? _settings.DeploymentName
                 : _settings.EvaluatorDeploymentName;
-            return _client.GetChatClient(deploymentName);
+
+            if (_settings.Provider.Equals("Azure", StringComparison.OrdinalIgnoreCase))
+            {
+                var client = new AzureOpenAIClient(
+                    new Uri(endpoint),
+                    new AzureKeyCredential(apiKey));
+                return client.GetChatClient(deploymentName);
+            }
+            else
+            {
+                // OpenAI / LiteLLM
+                var client = new OpenAIClient(
+                    new System.ClientModel.ApiKeyCredential(apiKey), 
+                    new OpenAIClientOptions { Endpoint = new Uri(endpoint) });
+                return client.GetChatClient(deploymentName);
+            }
         });
     }
 

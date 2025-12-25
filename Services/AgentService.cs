@@ -3,44 +3,60 @@ using Azure;
 using Azure.AI.OpenAI;
 using Microsoft.Agents.AI.OpenAI;
 using Microsoft.Extensions.Options;
+using OpenAI;
 using OpenAI.Chat;
 using PromptAgent.Models;
 
 namespace PromptAgent.Services;
 
 /// <summary>
-/// Azure OpenAI 配置
+/// AI 服務設定
 /// </summary>
 public class AzureOpenAISettings
 {
+    public string Provider { get; set; } = "Azure"; // "Azure" or "OpenAI"
     public string Endpoint { get; set; } = string.Empty;
     public string ApiKey { get; set; } = string.Empty;
-    public string DeploymentName { get; set; } = string.Empty;
+    public string DeploymentName { get; set; } = string.Empty; // For OpenAI, this is the Model ID
     public string EvaluatorEndpoint { get; set; } = string.Empty;
     public string EvaluatorApiKey { get; set; } = string.Empty;
     public string EvaluatorDeploymentName { get; set; } = string.Empty;
 }
 
 /// <summary>
-/// Agent 管理服務 - 使用 Microsoft Agent Framework
+/// Agent 管理服務 - 支援 Azure OpenAI 和一般 OpenAI (LiteLLM)
 /// </summary>
 public class AgentService
 {
     private readonly AzureOpenAISettings _settings;
     private readonly ILogger<AgentService> _logger;
-    private readonly AzureOpenAIClient _client;
     private readonly Lazy<ChatClient> _chatClient;
 
     public AgentService(IOptions<AzureOpenAISettings> settings, ILogger<AgentService> logger)
     {
         _settings = settings.Value;
         _logger = logger;
-        _client = new AzureOpenAIClient(
-            new Uri(_settings.Endpoint),
-            new AzureKeyCredential(_settings.ApiKey));
         
         // 快取 ChatClient 實例以重用連線
-        _chatClient = new Lazy<ChatClient>(() => _client.GetChatClient(_settings.DeploymentName));
+        _chatClient = new Lazy<ChatClient>(() => 
+        {
+            if (_settings.Provider.Equals("Azure", StringComparison.OrdinalIgnoreCase))
+            {
+                var client = new AzureOpenAIClient(
+                    new Uri(_settings.Endpoint),
+                    new AzureKeyCredential(_settings.ApiKey));
+                return client.GetChatClient(_settings.DeploymentName);
+            }
+            else
+            {
+                // OpenAI / LiteLLM
+                // 使用 OpenAIClient (需確保引用了 OpenAI namespace)
+                var client = new OpenAIClient(
+                    new System.ClientModel.ApiKeyCredential(_settings.ApiKey), 
+                    new OpenAIClientOptions { Endpoint = new Uri(_settings.Endpoint) });
+                return client.GetChatClient(_settings.DeploymentName);
+            }
+        });
     }
 
     /// <summary>

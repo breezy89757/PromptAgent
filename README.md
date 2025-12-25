@@ -69,6 +69,7 @@ cp appsettings.template.json appsettings.json
 ```json
 {
   "AzureOpenAI": {
+    "Provider": "Azure",
     "Endpoint": "https://your-resource.openai.azure.com/",
     "ApiKey": "your-api-key",
     "DeploymentName": "gpt-4o-mini",
@@ -80,6 +81,28 @@ cp appsettings.template.json appsettings.json
 ```
 
 > 💡 **提示**: 建議使用較強的模型（如 GPT-4o）作為評估者，以獲得更準確的分析結果。
+
+### 🔌 使用 LiteLLM / OpenAI 兼容端點
+
+本專案也支援使用 LiteLLM 或其他 OpenAI 兼容的 API。只需調整 `appsettings.json`：
+
+```json
+{
+  "AzureOpenAI": {
+    "Provider": "OpenAI",
+    "Endpoint": "http://localhost:4000/v1",
+    "ApiKey": "sk-1234",
+    "DeploymentName": "gpt-4o-mini",
+    "EvaluatorEndpoint": "http://localhost:4000/v1",
+    "EvaluatorApiKey": "sk-1234",
+    "EvaluatorDeploymentName": "gpt-4o"
+  }
+}
+```
+
+- **Provider**: 設定為 `"OpenAI"`
+- **Endpoint**: 設定為 LiteLLM 服務位置 (例如 `http://localhost:4000/v1`)
+- **DeploymentName**: 對應到 LiteLLM 中的 Model Name
 
 ### 3. 執行專案
 

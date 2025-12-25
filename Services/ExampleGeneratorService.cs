@@ -2,6 +2,7 @@ using System.Text.Json;
 using Azure;
 using Azure.AI.OpenAI;
 using Microsoft.Extensions.Options;
+using OpenAI;
 using OpenAI.Chat;
 using PromptAgent.Models;
 
@@ -14,7 +15,7 @@ public class ExampleGeneratorService
 {
     private readonly AzureOpenAISettings _settings;
     private readonly ILogger<ExampleGeneratorService> _logger;
-    private readonly AzureOpenAIClient _client;
+    private readonly Lazy<ChatClient> _chatClient;
     
     private static readonly JsonSerializerOptions JsonOptions = new()
     {
@@ -25,9 +26,25 @@ public class ExampleGeneratorService
     {
         _settings = settings.Value;
         _logger = logger;
-        _client = new AzureOpenAIClient(
-            new Uri(_settings.Endpoint),
-            new AzureKeyCredential(_settings.ApiKey));
+        
+        // 快取 ChatClient 實例以重用連線
+        _chatClient = new Lazy<ChatClient>(() => 
+        {
+            if (_settings.Provider.Equals("Azure", StringComparison.OrdinalIgnoreCase))
+            {
+                var client = new AzureOpenAIClient(
+                    new Uri(_settings.Endpoint),
+                    new AzureKeyCredential(_settings.ApiKey));
+                return client.GetChatClient(_settings.DeploymentName);
+            }
+            else
+            {
+                var client = new OpenAIClient(
+                    new System.ClientModel.ApiKeyCredential(_settings.ApiKey), 
+                    new OpenAIClientOptions { Endpoint = new Uri(_settings.Endpoint) });
+                return client.GetChatClient(_settings.DeploymentName);
+            }
+        });
     }
 
     /// <summary>
@@ -57,7 +74,7 @@ public class ExampleGeneratorService
 
         _logger.LogInformation("Generating example for category: {Category}", category.Name);
 
-        var chatClient = _client.GetChatClient(_settings.DeploymentName);
+        var chatClient = _chatClient.Value;
 
         var systemPrompt = """
             你是一個 Prompt 測試範例生成專家。你的任務是根據指定的分類，生成一個創意且實用的測試範例。
