@@ -1,30 +1,33 @@
 # ⚡ PromptAgent
 
-> Prompt 優化測試系統 - 使用多輪平行測試和 AI 智慧評估來優化你的 Prompt
+> Prompt 優化測試系統 - 使用 Microsoft Agent Framework 進行智慧評估與多輪優化
 
 ![.NET](https://img.shields.io/badge/.NET-10.0-512BD4?logo=dotnet)
 ![Blazor](https://img.shields.io/badge/Blazor-Server-512BD4?logo=blazor)
 ![Azure OpenAI](https://img.shields.io/badge/Azure-OpenAI-0078D4?logo=microsoft-azure)
+![MAF](https://img.shields.io/badge/Microsoft-Agent_Framework-purple)
 
 ## ✨ 功能特色
 
+- 🤖 **Microsoft Agent Framework** - 使用 `ChatClientAgent` 統一 AI 呼叫，支援智慧路由
 - 🚀 **多輪平行執行** - 使用 `Task.WhenAll` 同時執行多個 Agent，快速測試 Prompt 穩定性
-- 🧠 **AI 智慧評估** - 由更強的 AI 模型分析結果，給出專業評估報告
+- 🧠 **GAI 可行性評估** - 智慧分析需求適合使用 GAI、傳統程式、還是人工處理
+- 📊 **成本比較視覺化** - Chart.js 圖表展示三種方案的成本與能力比較
 - ✨ **一鍵優化建議** - 自動生成優化後的 Prompt，一鍵套用立即改善效果
 - 🎲 **AI 生成範例** - 使用 LLM 動態生成測試範例，支援數學、邏輯、翻譯、程式碼等類別
 - 🎯 **引導模式** - 人機協作優化，每輪暫停讓您選擇偏好的回答風格
 - 🔄 **Meta-Prompt 優化** - Evaluator 自動學習調整策略，根據優化效果動態切換模式
 
-## 🧬 Meta-Prompt Optimization (新功能！)
+## 🆕 智慧路由架構
 
-系統會追蹤每輪優化的效果，並自動調整 Evaluator 的策略：
+GAI 評估服務使用 **Router Agent** 智慧判斷需求複雜度：
 
-| 策略 | 觸發條件 | 行為 |
-|-----|---------|-----|
-| 🛡️ **保守模式** | 連續 2 輪分數下降 | 小幅修改，保留原結構 |
-| 🚀 **激進模式** | 連續 3 輪分數停滯 | 大膽嘗試新方向 |
-| 🎯 **穩定優先** | 穩定性明顯低於正確性 | 專注減少輸出變異 |
-| ✓ **正確優先** | 正確性明顯低於穩定性 | 專注提升答案品質 |
+```
+[用戶需求] → [RouterAgent] → SIMPLE / COMPLEX
+                               ↓
+            SIMPLE → 快速回應 (~2秒) - 直接推薦程式方案
+            COMPLEX → 完整分析 (~10秒) - 三方案比較 + 程式碼建議
+```
 
 ## 📸 截圖
 
@@ -121,15 +124,19 @@ PromptAgent/
 ├── Models/
 │   ├── TestCase.cs              # 測試案例模型
 │   ├── TestResult.cs            # 測試結果模型
+│   ├── EvaluationModels.cs      # GAI 評估模型
 │   └── GuidedModeModels.cs      # 引導模式模型
 ├── Services/
-│   ├── AgentService.cs          # Agent 管理服務 (平行執行)
+│   ├── AgentService.cs          # Agent 管理服務 (MAF ChatClientAgent)
+│   ├── GAIEvaluatorService.cs   # GAI 可行性評估 (智慧路由)
 │   ├── EvaluationService.cs     # 評估服務 (分析 + 引導模式)
 │   ├── ExampleGeneratorService.cs # LLM 驅動的範例生成
 │   └── MetaEvaluatorService.cs  # Meta-Prompt 自適應優化
 ├── Components/
 │   ├── Layout/                  # 版面配置
 │   └── Pages/                   # 頁面元件
+│       ├── PromptTest.razor     # Prompt 測試頁面
+│       └── GAIEvaluator.razor   # GAI 可行性評估頁面
 └── appsettings.json             # 配置檔案
 ```
 

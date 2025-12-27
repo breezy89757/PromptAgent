@@ -1,3 +1,7 @@
+using Azure;
+using Azure.AI.OpenAI;
+using Microsoft.Extensions.AI;
+using Microsoft.Extensions.Options;
 using PromptAgent.Components;
 using PromptAgent.Services;
 
@@ -10,6 +14,17 @@ builder.Services.AddRazorComponents()
 // Configure Azure OpenAI settings
 builder.Services.Configure<AzureOpenAISettings>(
     builder.Configuration.GetSection("AzureOpenAI"));
+
+// Register IChatClient for Microsoft Agent Framework
+builder.Services.AddSingleton<IChatClient>(sp =>
+{
+    var settings = sp.GetRequiredService<IOptions<AzureOpenAISettings>>().Value;
+    return new AzureOpenAIClient(
+        new Uri(settings.Endpoint),
+        new AzureKeyCredential(settings.ApiKey))
+        .GetChatClient(settings.DeploymentName)
+        .AsIChatClient();
+});
 
 // Register application services
 // 使用 Singleton 讓 AzureOpenAIClient 可以重用 HTTP 連線

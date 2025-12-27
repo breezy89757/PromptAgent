@@ -1,7 +1,8 @@
 using System.Diagnostics;
 using Azure;
 using Azure.AI.OpenAI;
-using Microsoft.Agents.AI.OpenAI;
+using Microsoft.Extensions.AI;
+using Microsoft.Agents.AI;
 using Microsoft.Extensions.Options;
 using OpenAI;
 using OpenAI.Chat;
@@ -28,66 +29,38 @@ public class AzureOpenAISettings
 }
 
 /// <summary>
-/// Agent 管理服務 - 支援 Azure OpenAI 和一般 OpenAI (LiteLLM)
+/// Agent 管理服務 - 使用 Microsoft Agent Framework
 /// </summary>
 public class AgentService
 {
-    private readonly AzureOpenAISettings _settings;
     private readonly ILogger<AgentService> _logger;
-    private readonly Lazy<ChatClient> _chatClient;
+    private readonly IChatClient _chatClient;
 
-    public AgentService(IOptions<AzureOpenAISettings> settings, ILogger<AgentService> logger)
+    public AgentService(IChatClient chatClient, ILogger<AgentService> logger)
     {
-        _settings = settings.Value;
+        _chatClient = chatClient;
         _logger = logger;
-        
-        // 快取 ChatClient 實例以重用連線
-        _chatClient = new Lazy<ChatClient>(() => 
-        {
-            if (_settings.Provider.Equals("Azure", StringComparison.OrdinalIgnoreCase))
-            {
-                var client = new AzureOpenAIClient(
-                    new Uri(_settings.Endpoint),
-                    new AzureKeyCredential(_settings.ApiKey));
-                return client.GetChatClient(_settings.DeploymentName);
-            }
-            else
-            {
-                // OpenAI / LiteLLM
-                // 使用 OpenAIClient (需確保引用了 OpenAI namespace)
-                var client = new OpenAIClient(
-                    new System.ClientModel.ApiKeyCredential(_settings.ApiKey), 
-                    new OpenAIClientOptions { Endpoint = new Uri(_settings.Endpoint) });
-                return client.GetChatClient(_settings.DeploymentName);
-            }
-        });
     }
 
     /// <summary>
-    /// 執行單次 Agent 呼叫
+    /// 執行單次 Agent 呼叫 - 使用 ChatClientAgent
     /// </summary>
     public async Task<AgentResponse> ExecuteAgentAsync(TestCase testCase, int executionIndex, CancellationToken cancellationToken = default)
     {
         var stopwatch = Stopwatch.StartNew();
         try
         {
-            var chatClient = _chatClient.Value;
-
-            var messages = new List<ChatMessage>
-            {
-                new SystemChatMessage(testCase.SystemPrompt),
-                new UserChatMessage(testCase.Question)
-            };
-
-            var options = new ChatCompletionOptions
-            {
-                Temperature = testCase.Temperature
-            };
-
-            var response = await chatClient.CompleteChatAsync(messages, options, cancellationToken);
+            // 為每次執行建立獨立的 Agent
+            var agent = new ChatClientAgent(
+                _chatClient,
+                instructions: testCase.SystemPrompt,
+                name: $"PromptTester-{executionIndex}");
+            
+            // 使用 MAF 執行
+            var response = await agent.RunAsync(testCase.Question);
             stopwatch.Stop();
 
-            var content = response.Value.Content.FirstOrDefault()?.Text ?? string.Empty;
+            var content = response.ToString();
 
             _logger.LogInformation("Agent execution {Index} completed in {Time}ms", executionIndex, stopwatch.ElapsedMilliseconds);
 
@@ -117,6 +90,7 @@ public class AgentService
 
     /// <summary>
     /// 使用 Task.WhenAll 平行執行多個 Agent
+    /// 注意：ConcurrentOrchestration 底層也是並行，速度相同
     /// </summary>
     public async Task<List<AgentResponse>> ExecuteParallelAsync(TestCase testCase, CancellationToken cancellationToken = default)
     {

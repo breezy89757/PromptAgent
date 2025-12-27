@@ -2,6 +2,8 @@ using System.Text.Json;
 using System.Net.Http.Json;
 using System.Text;
 using Microsoft.Extensions.Options;
+using Microsoft.Extensions.AI;
+using Microsoft.Agents.AI;
 using Azure;
 using Azure.AI.OpenAI;
 using OpenAI;
@@ -11,8 +13,9 @@ using PromptAgent.Models;
 namespace PromptAgent.Services;
 
 /// <summary>
-/// GAI 可行性評估服務 - 使用 LLM 分析需求是否適合使用 GAI
+/// GAI 可行性評估服務 - 使用 Microsoft Agent Framework
 /// 成本以新台幣(TWD)計算，人工成本以台灣薪資中位數估算
+/// 智慧路由：簡單需求快速回應，複雜需求多 Agent 協作
 /// </summary>
 public class GAIEvaluatorService
 {
@@ -21,36 +24,50 @@ public class GAIEvaluatorService
     
     private readonly AzureOpenAISettings _settings;
     private readonly ILogger<GAIEvaluatorService> _logger;
-    private readonly Lazy<ChatClient> _chatClient;
+    private readonly IChatClient _chatClient;
+    private readonly AIAgent _routerAgent;
+    private readonly AIAgent _evaluatorAgent;
     private readonly IHttpClientFactory _httpClientFactory;
     private readonly bool _hasCodeAdvisor;
 
     public GAIEvaluatorService(
         IOptions<AzureOpenAISettings> settings, 
         ILogger<GAIEvaluatorService> logger,
+        IChatClient chatClient,
         IHttpClientFactory httpClientFactory)
     {
         _settings = settings.Value;
         _logger = logger;
+        _chatClient = chatClient;
         _httpClientFactory = httpClientFactory;
         
-        _chatClient = new Lazy<ChatClient>(() =>
-        {
-            if (_settings.Provider.Equals("Azure", StringComparison.OrdinalIgnoreCase))
-            {
-                var client = new AzureOpenAIClient(
-                    new Uri(_settings.Endpoint),
-                    new AzureKeyCredential(_settings.ApiKey));
-                return client.GetChatClient(_settings.DeploymentName);
-            }
-            else
-            {
-                var client = new OpenAIClient(
-                    new System.ClientModel.ApiKeyCredential(_settings.ApiKey),
-                    new OpenAIClientOptions { Endpoint = new Uri(_settings.Endpoint) });
-                return client.GetChatClient(_settings.DeploymentName);
-            }
-        });
+        // 建立 Router Agent - 快速判斷複雜度
+        _routerAgent = new ChatClientAgent(
+            chatClient,
+            instructions: """
+                你是一個需求複雜度分類器。判斷需求是 SIMPLE 還是 COMPLEX。
+                
+                SIMPLE（傳統程式可解決）：
+                - 格式驗證（Email、電話、身分證）
+                - 簡單字串轉換
+                - 固定規則的資料處理
+                - 明確的算法問題
+                
+                COMPLEX（需要多角度分析）：
+                - 影像/語音識別
+                - 自然語言處理
+                - 需要比較多種方案
+                - 涉及 AI vs 傳統的取捨
+                
+                只回答 SIMPLE 或 COMPLEX，不要有其他文字。
+                """,
+            name: "RouterAgent");
+        
+        // 建立 Evaluator Agent - 完整評估
+        _evaluatorAgent = new ChatClientAgent(
+            chatClient,
+            instructions: BuildSystemPrompt(),
+            name: "EvaluatorAgent");
         
         // 檢查是否有 Code Advisor 設定 (使用 Responses API)
         _hasCodeAdvisor = !string.IsNullOrEmpty(_settings.CodeAdvisorEndpoint) && 
@@ -59,59 +76,113 @@ public class GAIEvaluatorService
     }
 
     /// <summary>
-    /// 評估需求是否適合使用 GAI
+    /// 評估需求是否適合使用 GAI - 使用智慧路由
     /// </summary>
     public async Task<EvaluationResult> EvaluateRequirementAsync(EvaluationRequest request, CancellationToken cancellationToken = default)
     {
         _logger.LogInformation("Starting evaluation for requirement: {Requirement}", request.RequirementDescription);
 
-        var systemPrompt = BuildSystemPrompt();
-        var userPrompt = BuildUserPrompt(request);
-
         try
         {
-            var chatClient = _chatClient.Value;
-            var messages = new List<ChatMessage>
-            {
-                new SystemChatMessage(systemPrompt),
-                new UserChatMessage(userPrompt)
-            };
-
-            var options = new ChatCompletionOptions
-            {
-                Temperature = 0.3f
-            };
-
-            var response = await chatClient.CompleteChatAsync(messages, options, cancellationToken);
-            var content = response.Value.Content.FirstOrDefault()?.Text ?? string.Empty;
-
-            _logger.LogInformation("Received evaluation response");
-
-            var result = ParseEvaluationResponse(content);
+            // Step 1: 使用 Router Agent 快速判斷複雜度
+            var routerResponse = await _routerAgent.RunAsync(
+                $"判斷這個需求的複雜度：{request.RequirementDescription}");
             
-            // 如果推薦傳統程式方案，使用 Codex 生成專業程式碼建議
-            if (result.RecommendedSolution == "Traditional" && _hasCodeAdvisor)
+            var complexity = routerResponse.ToString().Trim().ToUpperInvariant();
+            _logger.LogInformation("Router classified requirement as: {Complexity}", complexity);
+            
+            // Step 2: 根據複雜度選擇處理方式
+            if (complexity.Contains("SIMPLE"))
             {
-                try
-                {
-                    result.CodeSuggestion = await GetCodeSuggestionAsync(
-                        request.RequirementDescription, 
-                        result.TraditionalAlternative,
-                        cancellationToken);
-                }
-                catch (Exception ex)
-                {
-                    _logger.LogWarning(ex, "Failed to get code suggestion from Codex");
-                }
+                // 簡單需求：快速生成傳統程式建議
+                return await QuickEvaluateAsync(request, cancellationToken);
             }
             
-            return result;
+            // Step 3: 複雜需求：完整評估
+            return await FullEvaluateAsync(request, cancellationToken);
         }
         catch (Exception ex)
         {
             _logger.LogError(ex, "Failed to evaluate requirement");
             return CreateFallbackResult(request);
         }
+    }
+    
+    /// <summary>
+    /// 簡單需求的快速評估 - 直接推薦傳統程式
+    /// </summary>
+    private async Task<EvaluationResult> QuickEvaluateAsync(EvaluationRequest request, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Using quick evaluation for simple requirement");
+        
+        var quickPrompt = $$"""
+            這是一個簡單的需求，請給出傳統程式解決方案。
+            需求：{{request.RequirementDescription}}
+            
+            請以 JSON 格式回應，只包含：
+            {
+                "traditionalAlternative": "建議使用的技術（如 Regex、DateTime.Parse）",
+                "description": "一句話說明實作方式"
+            }
+            """;
+        
+        var response = await _evaluatorAgent.RunAsync(quickPrompt);
+        var content = response.ToString();
+        
+        // 解析簡單回應並建立結果
+        var result = CreateSimpleResult(request, content);
+        
+        // 如果有 Codex，生成程式碼建議
+        if (_hasCodeAdvisor)
+        {
+            try
+            {
+                result.CodeSuggestion = await GetCodeSuggestionAsync(
+                    request.RequirementDescription, 
+                    result.TraditionalAlternative,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to get code suggestion from Codex");
+            }
+        }
+        
+        return result;
+    }
+    
+    /// <summary>
+    /// 複雜需求的完整評估 - 三方案比較
+    /// </summary>
+    private async Task<EvaluationResult> FullEvaluateAsync(EvaluationRequest request, CancellationToken cancellationToken)
+    {
+        _logger.LogInformation("Using full evaluation for complex requirement");
+        
+        var userPrompt = BuildUserPrompt(request);
+        var response = await _evaluatorAgent.RunAsync(userPrompt);
+        var content = response.ToString();
+
+        _logger.LogInformation("Received full evaluation response");
+
+        var result = ParseEvaluationResponse(content);
+        
+        // 如果推薦傳統程式方案，使用 Codex 生成專業程式碼建議
+        if (result.RecommendedSolution == "Traditional" && _hasCodeAdvisor)
+        {
+            try
+            {
+                result.CodeSuggestion = await GetCodeSuggestionAsync(
+                    request.RequirementDescription, 
+                    result.TraditionalAlternative,
+                    cancellationToken);
+            }
+            catch (Exception ex)
+            {
+                _logger.LogWarning(ex, "Failed to get code suggestion from Codex");
+            }
+        }
+        
+        return result;
     }
 
     /// <summary>
@@ -379,6 +450,97 @@ public class GAIEvaluatorService
             if (end > start) jsonContent = content[start..end].Trim();
         }
         return jsonContent;
+    }
+
+    /// <summary>
+    /// 為簡單需求建立快速結果
+    /// </summary>
+    private static EvaluationResult CreateSimpleResult(EvaluationRequest request, string content)
+    {
+        var traditional = "傳統程式";
+        var description = "使用傳統程式方式處理";
+        
+        try
+        {
+            var jsonContent = ExtractJson(content);
+            using var doc = JsonDocument.Parse(jsonContent);
+            var root = doc.RootElement;
+            
+            traditional = root.TryGetProperty("traditionalAlternative", out var alt) 
+                ? alt.GetString() ?? traditional 
+                : traditional;
+            description = root.TryGetProperty("description", out var desc) 
+                ? desc.GetString() ?? description 
+                : description;
+        }
+        catch
+        {
+            // 使用預設值
+        }
+        
+        return new EvaluationResult
+        {
+            Solutions = new List<SolutionAnalysis>
+            {
+                new()
+                {
+                    SolutionType = "Traditional",
+                    Icon = "💻",
+                    DisplayName = "傳統程式",
+                    RecommendationScore = 5,
+                    IsRecommended = true,
+                    DevelopmentSpeed = 80,
+                    Accuracy = 98,
+                    MaintenanceCost = 90,
+                    Scalability = 85,
+                    Flexibility = 30,
+                    SetupCost = 2000, // TWD (簡單需求開發時間短)
+                    CostPerUnit = 0.001m,
+                    Description = description,
+                    Pros = new List<string> { "簡單可靠", "無持續成本", "高準確率" },
+                    Cons = new List<string> { "靈活性較低" }
+                },
+                new()
+                {
+                    SolutionType = "GAI",
+                    Icon = "🤖",
+                    DisplayName = "GAI 方案",
+                    RecommendationScore = 1,
+                    IsRecommended = false,
+                    DevelopmentSpeed = 90,
+                    Accuracy = 85,
+                    MaintenanceCost = 60,
+                    Scalability = 90,
+                    Flexibility = 95,
+                    SetupCost = 5000,
+                    CostPerUnit = 0.5m,
+                    Description = "對於這個簡單需求，使用 GAI 是過度設計",
+                    Pros = new List<string> { "開發最快" },
+                    Cons = new List<string> { "成本過高", "殺雞用牛刀" }
+                },
+                new()
+                {
+                    SolutionType = "Manual",
+                    Icon = "🧑‍💼",
+                    DisplayName = "人工處理",
+                    RecommendationScore = 1,
+                    IsRecommended = false,
+                    DevelopmentSpeed = 100,
+                    Accuracy = 99,
+                    MaintenanceCost = 10,
+                    Scalability = 10,
+                    Flexibility = 100,
+                    SetupCost = 0,
+                    CostPerUnit = 3m,
+                    Description = "不建議人工處理這類可自動化的任務",
+                    Pros = new List<string> { "無需開發" },
+                    Cons = new List<string> { "效率極低", "成本高昂" }
+                }
+            },
+            RecommendedSolution = "Traditional",
+            AiConclusion = $"✅ 這是一個簡單需求！建議使用 {traditional}，開發快速且穩定可靠。",
+            TraditionalAlternative = traditional
+        };
     }
 
     private static EvaluationResult CreateFallbackResult(EvaluationRequest request)
