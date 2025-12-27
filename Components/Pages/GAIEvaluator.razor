@@ -1,0 +1,335 @@
+@page "/gai-evaluator"
+@using PromptAgent.Models
+@using PromptAgent.Services
+@inject GAIEvaluatorService EvaluatorService
+@inject IJSRuntime JSRuntime
+@rendermode InteractiveServer
+
+<PageTitle>GAI 可行性評估 - PromptAgent</PageTitle>
+
+<div class="evaluator-container">
+    <div class="page-header">
+        <h1 class="page-title">
+            <span class="title-icon">📊</span>
+            <span class="gradient-text">GAI</span> 可行性評估
+        </h1>
+        <p class="page-subtitle">
+            分析你的需求適合使用 GAI、傳統程式、還是人工處理
+        </p>
+    </div>
+
+    <!-- 輸入表單 -->
+    <div class="input-section">
+        <div class="form-card">
+            <div class="form-group">
+                <label class="form-label">📝 描述你的需求</label>
+                <textarea class="form-textarea" 
+                          @bind="request.RequirementDescription" 
+                          placeholder="描述你想要自動化的任務..."
+                          rows="4"></textarea>
+            </div>
+            
+            <div class="form-row">
+                <div class="form-group">
+                    <label class="form-label">📈 每月使用次數</label>
+                    <input type="number" class="form-input" @bind="request.MonthlyUsage" min="1" />
+                </div>
+            </div>
+            
+            <button class="btn-analyze" @onclick="StartAnalysis" disabled="@isAnalyzing">
+                @if (isAnalyzing)
+                {
+                    <span class="spinner"></span>
+                    <span>分析中...</span>
+                }
+                else
+                {
+                    <span class="btn-icon">🔍</span>
+                    <span>開始分析</span>
+                }
+            </button>
+        </div>
+    </div>
+
+    <!-- 結果區域 -->
+    @if (result != null)
+    {
+        <!-- 方案卡片 -->
+        <div class="solutions-section">
+            <h2 class="section-title">💡 方案比較</h2>
+            <div class="solutions-grid">
+                @foreach (var solution in result.Solutions)
+                {
+                    <div class="solution-card @(solution.IsRecommended ? "recommended" : "")">
+                        @if (solution.IsRecommended)
+                        {
+                            <div class="recommended-badge">推薦</div>
+                        }
+                        <div class="solution-icon">@solution.Icon</div>
+                        <h3 class="solution-name">@solution.DisplayName</h3>
+                        <div class="solution-stars">
+                            @for (int i = 0; i < 5; i++)
+                            {
+                                <span class="star @(i < solution.RecommendationScore ? "filled" : "")">⭐</span>
+                            }
+                        </div>
+                        <p class="solution-desc">@solution.Description</p>
+                        
+                        <div class="solution-details">
+                            <div class="detail-item">
+                                <span class="detail-label">初期成本</span>
+                                <span class="detail-value">NT$@solution.SetupCost.ToString("N0")</span>
+                            </div>
+                            <div class="detail-item">
+                                <span class="detail-label">每次成本</span>
+                                <span class="detail-value">NT$@solution.CostPerUnit.ToString("N2")</span>
+                            </div>
+                        </div>
+                        
+                        <div class="pros-cons">
+                            <div class="pros">
+                                <h4>✅ 優點</h4>
+                                <ul>
+                                    @foreach (var pro in solution.Pros.Take(3))
+                                    {
+                                        <li>@pro</li>
+                                    }
+                                </ul>
+                            </div>
+                            <div class="cons">
+                                <h4>❌ 缺點</h4>
+                                <ul>
+                                    @foreach (var con in solution.Cons.Take(3))
+                                    {
+                                        <li>@con</li>
+                                    }
+                                </ul>
+                            </div>
+                        </div>
+                    </div>
+                }
+            </div>
+        </div>
+
+        <!-- 圖表區域 -->
+        <div class="charts-section">
+            <div class="chart-container">
+                <h3 class="chart-title">📈 成本曲線圖 (NT$)</h3>
+                <div class="chart-wrapper">
+                    <canvas id="costChart"></canvas>
+                </div>
+            </div>
+            <div class="chart-container">
+                <h3 class="chart-title">🕸️ 多維度比較</h3>
+                <div class="chart-wrapper">
+                    <canvas id="radarChart"></canvas>
+                </div>
+            </div>
+        </div>
+
+        <!-- AI 結論 -->
+        <div class="conclusion-section">
+            <div class="conclusion-card">
+                <div class="conclusion-header">
+                    <span class="conclusion-icon">💡</span>
+                    <h3>AI 分析結論</h3>
+                </div>
+                <p class="conclusion-text">@result.AiConclusion</p>
+                @if (!string.IsNullOrEmpty(result.TraditionalAlternative) && result.TraditionalAlternative != "視需求而定")
+                {
+                    <div class="alternative-suggestion">
+                        <span class="suggestion-icon">🔧</span>
+                        <span>傳統程式建議工具：<strong>@result.TraditionalAlternative</strong></span>
+                    </div>
+                }
+            </div>
+        </div>
+        
+        <!-- 專業程式碼建議 (Codex) -->
+        @if (result.CodeSuggestion != null)
+        {
+            <div class="code-suggestion-section">
+                <div class="code-card">
+                    <div class="code-header">
+                        <span class="code-icon">👨‍💻</span>
+                        <h3>專業程式碼建議</h3>
+                        <span class="codex-badge">Codex 生成</span>
+                    </div>
+                    
+                    <div class="code-meta">
+                        <div class="meta-item">
+                            <span class="meta-label">技術棧</span>
+                            <span class="meta-value">@result.CodeSuggestion.TechStack</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">難度</span>
+                            <span class="meta-value difficulty-@result.CodeSuggestion.DifficultyLevel">
+                                @for (int i = 0; i < result.CodeSuggestion.DifficultyLevel; i++) { <span>⭐</span> }
+                            </span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">預估工時</span>
+                            <span class="meta-value">@result.CodeSuggestion.EstimatedHours 小時</span>
+                        </div>
+                        <div class="meta-item">
+                            <span class="meta-label">預估成本</span>
+                            <span class="meta-value">NT$@((result.CodeSuggestion.EstimatedHours * 269).ToString("N0"))</span>
+                        </div>
+                    </div>
+                    
+                    @if (result.CodeSuggestion.Libraries.Count > 0)
+                    {
+                        <div class="libraries-section">
+                            <h4>📦 建議套件</h4>
+                            <div class="library-tags">
+                                @foreach (var lib in result.CodeSuggestion.Libraries)
+                                {
+                                    <span class="library-tag">@lib</span>
+                                }
+                            </div>
+                        </div>
+                    }
+                    
+                    @if (result.CodeSuggestion.ImplementationSteps.Count > 0)
+                    {
+                        <div class="steps-section">
+                            <h4>📋 實作步驟</h4>
+                            <ol class="implementation-steps">
+                                @foreach (var step in result.CodeSuggestion.ImplementationSteps)
+                                {
+                                    <li>@step</li>
+                                }
+                            </ol>
+                        </div>
+                    }
+                    
+                    @if (!string.IsNullOrEmpty(result.CodeSuggestion.SampleCode))
+                    {
+                        <div class="sample-code-section">
+                            <h4>💻 範例程式碼</h4>
+                            <pre class="sample-code"><code>@result.CodeSuggestion.SampleCode</code></pre>
+                        </div>
+                    }
+                    
+                    @if (result.CodeSuggestion.Caveats.Count > 0)
+                    {
+                        <div class="caveats-section">
+                            <h4>⚠️ 注意事項</h4>
+                            <ul class="caveats-list">
+                                @foreach (var caveat in result.CodeSuggestion.Caveats)
+                                {
+                                    <li>@caveat</li>
+                                }
+                            </ul>
+                        </div>
+                    }
+                </div>
+            </div>
+        }
+    }
+</div>
+
+@code {
+    private EvaluationRequest request = new()
+    {
+        RequirementDescription = "",
+        MonthlyUsage = 10000
+    };
+    
+    // 範例需求
+    private readonly string[] exampleRequirements = new[]
+    {
+        "辨識固定格式的簡單數字驗證碼，4 位純數字，白底黑字無干擾線",
+        "驗證使用者輸入的 Email 格式是否正確",
+        "從 PDF 格式的發票中擷取發票號碼、日期、金額等欄位",
+        "將客服對話內容自動分類為「詢問」「投訴」「讚美」「其他」",
+        "將日期字串從各種格式（如 2024/1/1、Jan 1, 2024、1-1-24）統一轉換為 ISO 格式"
+    };
+
+    private EvaluationResult? result;
+    private bool isAnalyzing = false;
+    
+    private void SetExample(int index)
+    {
+        if (index >= 0 && index < exampleRequirements.Length)
+        {
+            request.RequirementDescription = exampleRequirements[index];
+            StateHasChanged();
+        }
+    }
+
+    private async Task StartAnalysis()
+    {
+        if (string.IsNullOrWhiteSpace(request.RequirementDescription))
+        {
+            return;
+        }
+
+        isAnalyzing = true;
+        StateHasChanged();
+
+        try
+        {
+            result = await EvaluatorService.EvaluateRequirementAsync(request);
+            StateHasChanged();
+            
+            // 等待 DOM 更新後渲染圖表
+            await Task.Delay(100);
+            await RenderCharts();
+        }
+        catch (Exception ex)
+        {
+            Console.Error.WriteLine($"Analysis failed: {ex.Message}");
+        }
+        finally
+        {
+            isAnalyzing = false;
+            StateHasChanged();
+        }
+    }
+
+    private async Task RenderCharts()
+    {
+        if (result == null) return;
+
+        // 成本曲線圖資料
+        var usagePoints = new[] { 0, 1000, 5000, 10000, 25000, 50000 };
+        var costData = new
+        {
+            labels = usagePoints.Select(u => u.ToString("N0")).ToArray(),
+            datasets = result.Solutions.Select(s => new
+            {
+                label = s.DisplayName,
+                data = usagePoints.Select(u => (double)(s.SetupCost + s.CostPerUnit * u)).ToArray()
+            }).ToArray()
+        };
+
+        await JSRuntime.InvokeVoidAsync("chartInterop.createLineChart", "costChart", costData);
+
+        // 雷達圖資料
+        var radarData = new
+        {
+            labels = new[] { "開發速度", "準確度", "維護成本", "擴展性", "靈活性" },
+            datasets = result.Solutions.Select(s => new
+            {
+                label = s.DisplayName,
+                data = new[] { s.DevelopmentSpeed, s.Accuracy, s.MaintenanceCost, s.Scalability, s.Flexibility }
+            }).ToArray()
+        };
+
+        await JSRuntime.InvokeVoidAsync("chartInterop.createRadarChart", "radarChart", radarData);
+    }
+
+    public async ValueTask DisposeAsync()
+    {
+        try
+        {
+            await JSRuntime.InvokeVoidAsync("chartInterop.destroyChart", "costChart");
+            await JSRuntime.InvokeVoidAsync("chartInterop.destroyChart", "radarChart");
+        }
+        catch
+        {
+            // Ignore disposal errors
+        }
+    }
+}

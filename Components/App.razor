@@ -28,6 +28,44 @@
     
     <script src="@Assets["_framework/blazor.web.js"]"></script>
     <script src="@Assets["lib/bootstrap/dist/js/bootstrap.bundle.min.js"]"></script>
+    <!-- Chart.js for visualization -->
+    <script src="https://cdn.jsdelivr.net/npm/chart.js@4.4.1/dist/chart.umd.min.js"></script>
+    <script src="js/chartInterop.js"></script>
+    <!-- html2canvas for screenshots -->
+    <script src="https://cdn.jsdelivr.net/npm/html2canvas@1.4.1/dist/html2canvas.min.js"></script>
+    <script>
+        window.screenshotPage = async function() {
+            const btn = document.getElementById('screenshot-btn');
+            if (btn) {
+                btn.classList.add('capturing');
+                btn.disabled = true;
+            }
+            try {
+                // 取得主要內容區域並截取完整高度
+                const content = document.querySelector('.content') || document.body;
+                const canvas = await html2canvas(content, {
+                    backgroundColor: '#0d1117',
+                    scale: 2,
+                    useCORS: true,
+                    logging: false,
+                    windowWidth: content.scrollWidth,
+                    windowHeight: content.scrollHeight,
+                    width: content.scrollWidth,
+                    height: content.scrollHeight
+                });
+                const link = document.createElement('a');
+                const timestamp = new Date().toISOString().replace(/[:.]/g, '-').slice(0, 19);
+                link.download = `PromptAgent_${timestamp}.png`;
+                link.href = canvas.toDataURL('image/png');
+                link.click();
+            } finally {
+                if (btn) {
+                    btn.classList.remove('capturing');
+                    btn.disabled = false;
+                }
+            }
+        };
+    </script>
 </body>
 
 </html>

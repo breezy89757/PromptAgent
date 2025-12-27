@@ -17,6 +17,13 @@ builder.Services.AddSingleton<AgentService>();
 builder.Services.AddSingleton<EvaluationService>();
 builder.Services.AddSingleton<ExampleGeneratorService>();
 
+// Register HttpClient for CodeAdvisor (MS best practice: IHttpClientFactory)
+builder.Services.AddHttpClient("CodeAdvisor", client =>
+{
+    client.Timeout = TimeSpan.FromSeconds(120);
+});
+builder.Services.AddSingleton<GAIEvaluatorService>();
+
 // Meta-Evaluator 使用 Scoped，每個用戶 session 獨立追蹤
 builder.Services.AddScoped<MetaEvaluatorService>();
 

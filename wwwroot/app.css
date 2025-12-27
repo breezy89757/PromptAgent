@@ -155,3 +155,66 @@ h1:focus {
     color: #fff;
     cursor: pointer;
 }
+
+/* ===================================
+   Global Screenshot FAB Button
+   =================================== */
+.screenshot-fab {
+    position: fixed;
+    bottom: 2rem;
+    right: 2rem;
+    width: 56px;
+    height: 56px;
+    border-radius: 50%;
+    border: none;
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: #fff;
+    cursor: pointer;
+    z-index: 9999;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    box-shadow: 0 4px 20px rgba(102, 126, 234, 0.5);
+    transition: all 0.3s ease;
+}
+
+.screenshot-fab:hover {
+    transform: scale(1.1);
+    box-shadow: 0 6px 30px rgba(102, 126, 234, 0.7);
+}
+
+.screenshot-fab:active {
+    transform: scale(0.95);
+}
+
+.screenshot-fab:disabled {
+    cursor: wait;
+}
+
+.screenshot-icon {
+    font-size: 1.5rem;
+}
+
+.screenshot-loader {
+    display: none;
+    width: 24px;
+    height: 24px;
+    border: 3px solid rgba(255, 255, 255, 0.3);
+    border-top-color: #fff;
+    border-radius: 50%;
+    animation: screenshot-spin 0.8s linear infinite;
+}
+
+.screenshot-fab.capturing .screenshot-icon {
+    display: none;
+}
+
+.screenshot-fab.capturing .screenshot-loader {
+    display: block;
+}
+
+@keyframes screenshot-spin {
+    to {
+        transform: rotate(360deg);
+    }
+}

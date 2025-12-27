@@ -21,6 +21,10 @@ public class AzureOpenAISettings
     public string EvaluatorEndpoint { get; set; } = string.Empty;
     public string EvaluatorApiKey { get; set; } = string.Empty;
     public string EvaluatorDeploymentName { get; set; } = string.Empty;
+    // Code Advisor (Codex) 設定
+    public string CodeAdvisorEndpoint { get; set; } = string.Empty;
+    public string CodeAdvisorApiKey { get; set; } = string.Empty;
+    public string CodeAdvisorDeploymentName { get; set; } = string.Empty;
 }
 
 /// <summary>
