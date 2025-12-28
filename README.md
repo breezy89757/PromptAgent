@@ -12,11 +12,13 @@
 - 🤖 **Microsoft Agent Framework** - 使用 `ChatClientAgent` 統一 AI 呼叫，支援智慧路由
 - 🚀 **多輪平行執行** - 使用 `Task.WhenAll` 同時執行多個 Agent，快速測試 Prompt 穩定性
 - 🧠 **GAI 可行性評估** - 智慧分析需求適合使用 GAI、傳統程式、還是人工處理
+- 📚 **Prompt 版本控制** - 像 Git 一樣管理 Prompt 版本，支援回滾、標籤、Diff 比較
 - 📊 **成本比較視覺化** - Chart.js 圖表展示三種方案的成本與能力比較
 - ✨ **一鍵優化建議** - 自動生成優化後的 Prompt，一鍵套用立即改善效果
 - 🎲 **AI 生成範例** - 使用 LLM 動態生成測試範例，支援數學、邏輯、翻譯、程式碼等類別
 - 🎯 **引導模式** - 人機協作優化，每輪暫停讓您選擇偏好的回答風格
 - 🔄 **Meta-Prompt 優化** - Evaluator 自動學習調整策略，根據優化效果動態切換模式
+- 📜 **歷史紀錄** - 測試結果自動保存到瀏覽器 LocalStorage，隨時查看過往紀錄
 
 ## 🆕 智慧路由架構
 
@@ -125,18 +127,21 @@ PromptAgent/
 │   ├── TestCase.cs              # 測試案例模型
 │   ├── TestResult.cs            # 測試結果模型
 │   ├── EvaluationModels.cs      # GAI 評估模型
-│   └── GuidedModeModels.cs      # 引導模式模型
+│   ├── GuidedModeModels.cs      # 引導模式模型
+│   └── PromptVersion.cs         # 版本控制模型
 ├── Services/
 │   ├── AgentService.cs          # Agent 管理服務 (MAF ChatClientAgent)
 │   ├── GAIEvaluatorService.cs   # GAI 可行性評估 (智慧路由)
 │   ├── EvaluationService.cs     # 評估服務 (分析 + 引導模式)
 │   ├── ExampleGeneratorService.cs # LLM 驅動的範例生成
-│   └── MetaEvaluatorService.cs  # Meta-Prompt 自適應優化
+│   ├── MetaEvaluatorService.cs  # Meta-Prompt 自適應優化
+│   └── PromptVersionService.cs  # Prompt 版本控制 (LocalStorage)
 ├── Components/
 │   ├── Layout/                  # 版面配置
 │   └── Pages/                   # 頁面元件
 │       ├── PromptTest.razor     # Prompt 測試頁面
-│       └── GAIEvaluator.razor   # GAI 可行性評估頁面
+│       ├── GAIEvaluator.razor   # GAI 可行性評估頁面
+│       └── PromptVersions.razor # Prompt 版本控制頁面
 └── appsettings.json             # 配置檔案
 ```
 
@@ -160,6 +165,48 @@ PromptAgent/
 3. 選擇您偏好的風格，或輸入自訂反饋
 4. 點擊「繼續下一輪」繼續優化
 5. 滿意後點擊「滿意，結束」
+
+### 📚 Prompt 版本控制
+
+像 Git 一樣管理你的 Prompt 版本：
+
+**建立專案**
+1. 點擊側邊欄「📚 版本控制」
+2. 點擊「➕ 新專案」
+3. 輸入專案名稱（如「翻譯助手」）
+
+**儲存版本**
+1. 在編輯器輸入 System Prompt / Question / Expected Answer
+2. 點擊「💾 儲存新版本」
+3. 每次修改都會建立新版本 (v1, v2, v3...)
+
+**回滾版本**
+1. 在版本列表找到想要的版本
+2. 點擊「載入」將該版本內容載入編輯器
+3. 可再儲存為新版本
+
+**標記 Best 版本**
+1. 點擊「標記 Best」為最佳版本加上 ⭐ 標籤
+2. Best 標籤是唯一的，新的 Best 會取消舊的
+
+**整合測試頁面**
+1. 在版本控制頁點「🧪 前往測試」
+2. 可將編輯器內容帶到 Prompt 測試頁面進行測試
+
+> 💡 所有資料儲存在瀏覽器 LocalStorage，不會上傳到任何伺服器
+
+### 💾 資料儲存說明
+
+所有紀錄都存在**瀏覽器的 LocalStorage**：
+
+| 功能 | Key | 說明 |
+|------|-----|------|
+| Prompt 測試歷史 | `prompt_test_history` | 最多 30 筆 |
+| GAI 評估歷史 | `gai_evaluation_history` | 最多 20 筆 |
+| 版本控制專案 | `prompt_projects` | 專案列表 |
+| 版本控制版本 | `prompt_versions_{id}` | 各專案版本 |
+
+> ⚠️ **注意**: 清除瀏覽器資料會刪除這些紀錄。如需備份，可在 DevTools (F12) → Application → Local Storage 匯出
 
 ## 🔧 技術架構
 

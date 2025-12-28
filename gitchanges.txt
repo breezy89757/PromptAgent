@@ -1,9 +1,0 @@
-Components/Pages/GAIEvaluator.razor
-Components/Pages/GAIEvaluator.razor.css
-Components/Pages/PromptTest.razor
-Components/Pages/PromptTest.razor.css
-Models/EvaluationModels.cs
-Program.cs
-PromptAgent.csproj
-Services/AgentService.cs
-Services/GAIEvaluatorService.cs

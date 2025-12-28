@@ -1,0 +1,428 @@
+/* ===================================
+   Prompt Versions Page Styles
+   =================================== */
+
+.versions-container {
+    min-height: 100vh;
+    background: linear-gradient(135deg, #0f0f23 0%, #1a1a2e 50%, #16213e 100%);
+    padding: 1.5rem 2rem;
+    color: #e0e0e0;
+}
+
+/* Page Header */
+.page-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 2rem;
+}
+
+.page-title {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    font-size: 1.75rem;
+    font-weight: 700;
+    color: #fff;
+    margin: 0;
+}
+
+.title-icon {
+    font-size: 2rem;
+}
+
+.btn-new-project {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 0.75rem 1.25rem;
+    border-radius: 10px;
+    font-size: 0.95rem;
+    font-weight: 600;
+    cursor: pointer;
+    transition: all 0.3s ease;
+}
+
+.btn-new-project:hover {
+    transform: translateY(-2px);
+    box-shadow: 0 6px 20px rgba(102, 126, 234, 0.4);
+}
+
+/* Loading */
+.loading {
+    text-align: center;
+    color: #888;
+    padding: 3rem;
+}
+
+/* Empty State */
+.empty-state {
+    text-align: center;
+    padding: 4rem 2rem;
+    color: #888;
+}
+
+.empty-icon {
+    font-size: 4rem;
+    margin-bottom: 1rem;
+    opacity: 0.5;
+}
+
+.empty-hint {
+    font-size: 0.9rem;
+    color: #666;
+}
+
+/* Section Title */
+.section-title {
+    font-size: 1.1rem;
+    color: #888;
+    margin-bottom: 1.5rem;
+    font-weight: 600;
+}
+
+/* Projects Grid */
+.projects-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fill, minmax(300px, 1fr));
+    gap: 1rem;
+}
+
+.project-card {
+    background: rgba(255, 255, 255, 0.05);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 12px;
+    padding: 1.25rem;
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    cursor: pointer;
+    transition: all 0.2s ease;
+}
+
+.project-card:hover {
+    background: rgba(102, 126, 234, 0.15);
+    border-color: rgba(102, 126, 234, 0.4);
+    transform: translateY(-2px);
+}
+
+.project-icon {
+    font-size: 2rem;
+}
+
+.project-info {
+    flex: 1;
+}
+
+.project-name {
+    color: #fff;
+    font-size: 1.1rem;
+    margin: 0 0 0.25rem 0;
+}
+
+.project-meta {
+    color: #888;
+    font-size: 0.85rem;
+    margin: 0;
+}
+
+.btn-delete {
+    background: transparent;
+    border: none;
+    font-size: 1.2rem;
+    cursor: pointer;
+    opacity: 0.5;
+    transition: opacity 0.2s;
+    padding: 0.5rem;
+}
+
+.btn-delete:hover {
+    opacity: 1;
+}
+
+/* Project Detail */
+.project-detail {
+    max-width: 900px;
+}
+
+.detail-header {
+    display: flex;
+    align-items: center;
+    gap: 1rem;
+    margin-bottom: 2rem;
+    flex-wrap: wrap;
+}
+
+.btn-back {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: #aaa;
+    padding: 0.5rem 1rem;
+    border-radius: 8px;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-back:hover {
+    background: rgba(255, 255, 255, 0.15);
+    color: #fff;
+}
+
+.detail-title {
+    flex: 1;
+    color: #fff;
+    font-size: 1.5rem;
+    margin: 0;
+}
+
+.header-actions {
+    display: flex;
+    gap: 0.75rem;
+}
+
+.btn-action {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    color: white;
+    border: none;
+    padding: 0.6rem 1rem;
+    border-radius: 8px;
+    font-size: 0.9rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-action:hover {
+    transform: translateY(-1px);
+    box-shadow: 0 4px 15px rgba(102, 126, 234, 0.3);
+}
+
+.btn-action.secondary {
+    background: rgba(255, 255, 255, 0.1);
+}
+
+/* Editor Section */
+.editor-section {
+    display: grid;
+    gap: 1rem;
+    margin-bottom: 2rem;
+}
+
+.editor-card {
+    background: rgba(0, 0, 0, 0.3);
+    border-radius: 12px;
+    padding: 1rem;
+}
+
+.editor-card h3 {
+    color: #888;
+    font-size: 0.85rem;
+    text-transform: uppercase;
+    letter-spacing: 0.05em;
+    margin: 0 0 0.75rem 0;
+}
+
+.editor-input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.1);
+    border-radius: 8px;
+    padding: 0.75rem;
+    color: #fff;
+    font-family: 'Consolas', monospace;
+    font-size: 0.9rem;
+    resize: vertical;
+}
+
+.editor-input:focus {
+    outline: none;
+    border-color: rgba(102, 126, 234, 0.5);
+}
+
+/* Versions Section */
+.versions-section {
+    margin-top: 2rem;
+}
+
+.section-subtitle {
+    color: #888;
+    font-size: 0.95rem;
+    margin-bottom: 1rem;
+}
+
+.no-versions {
+    color: #666;
+    text-align: center;
+    padding: 2rem;
+}
+
+.versions-list {
+    display: flex;
+    flex-direction: column;
+    gap: 0.75rem;
+}
+
+.version-item {
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+    border-radius: 10px;
+    padding: 1rem;
+    transition: all 0.2s;
+}
+
+.version-item.current {
+    border-color: rgba(102, 126, 234, 0.4);
+    background: rgba(102, 126, 234, 0.1);
+}
+
+.version-item:hover {
+    background: rgba(255, 255, 255, 0.06);
+}
+
+.version-header {
+    display: flex;
+    align-items: center;
+    gap: 0.75rem;
+    margin-bottom: 0.5rem;
+}
+
+.version-number {
+    font-weight: 700;
+    color: #fff;
+}
+
+.tag {
+    font-size: 0.75rem;
+    padding: 0.2rem 0.5rem;
+    border-radius: 4px;
+}
+
+.tag.best {
+    background: rgba(245, 158, 11, 0.2);
+    color: #f59e0b;
+}
+
+.tag.production {
+    background: rgba(16, 185, 129, 0.2);
+    color: #10b981;
+}
+
+.version-date {
+    color: #666;
+    font-size: 0.8rem;
+    margin-left: auto;
+}
+
+.version-scores {
+    display: flex;
+    gap: 1rem;
+    margin-bottom: 0.5rem;
+}
+
+.score {
+    font-size: 0.8rem;
+}
+
+.score.stability {
+    color: #3b82f6;
+}
+
+.score.correctness {
+    color: #10b981;
+}
+
+.version-note {
+    font-size: 0.85rem;
+    color: #888;
+    margin-bottom: 0.5rem;
+}
+
+.version-actions {
+    display: flex;
+    gap: 0.5rem;
+    margin-top: 0.5rem;
+}
+
+.btn-small {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: #aaa;
+    padding: 0.35rem 0.75rem;
+    border-radius: 6px;
+    font-size: 0.8rem;
+    cursor: pointer;
+    transition: all 0.2s;
+}
+
+.btn-small:hover {
+    background: rgba(102, 126, 234, 0.3);
+    color: #fff;
+}
+
+/* Modal */
+.modal-overlay {
+    position: fixed;
+    inset: 0;
+    background: rgba(0, 0, 0, 0.7);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+    backdrop-filter: blur(4px);
+}
+
+.modal {
+    background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%);
+    border-radius: 16px;
+    padding: 2rem;
+    width: 90%;
+    max-width: 400px;
+    border: 1px solid rgba(102, 126, 234, 0.3);
+    box-shadow: 0 25px 50px rgba(0, 0, 0, 0.5);
+    z-index: 1001;
+    position: relative;
+}
+
+.modal h3 {
+    color: #fff;
+    margin: 0 0 1.5rem 0;
+}
+
+.modal-input {
+    width: 100%;
+    background: rgba(0, 0, 0, 0.4);
+    border: 1px solid rgba(255, 255, 255, 0.15);
+    border-radius: 8px;
+    padding: 0.75rem 1rem;
+    color: #fff;
+    font-size: 1rem;
+    margin-bottom: 1.5rem;
+}
+
+.modal-input:focus {
+    outline: none;
+    border-color: rgba(102, 126, 234, 0.5);
+}
+
+.modal-actions {
+    display: flex;
+    gap: 0.75rem;
+    justify-content: flex-end;
+}
+
+.btn-cancel {
+    background: rgba(255, 255, 255, 0.1);
+    border: none;
+    color: #aaa;
+    padding: 0.6rem 1.25rem;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.btn-confirm {
+    background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+    border: none;
+    color: white;
+    padding: 0.6rem 1.25rem;
+    border-radius: 8px;
+    cursor: pointer;
+}

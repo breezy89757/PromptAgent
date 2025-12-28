@@ -1,0 +1,298 @@
+@page "/prompt-versions"
+@using PromptAgent.Models
+@using PromptAgent.Services
+@inject PromptVersionService VersionService
+@inject NavigationManager Navigation
+@rendermode InteractiveServer
+
+<PageTitle>Prompt 版本控制 - PromptAgent</PageTitle>
+
+<div class="versions-container">
+    <header class="page-header">
+        <h1 class="page-title">
+            <span class="title-icon">📚</span>
+            Prompt 版本控制
+        </h1>
+        <button class="btn-new-project" @onclick="ShowNewProjectDialog">
+            ➕ 新專案
+        </button>
+    </header>
+
+    @if (isLoading)
+    {
+        <div class="loading">載入中...</div>
+    }
+    else if (selectedProject == null)
+    {
+        <!-- 專案列表 -->
+        <div class="projects-section">
+            <h2 class="section-title">我的專案</h2>
+            
+            @if (projects.Count == 0)
+            {
+                <div class="empty-state">
+                    <div class="empty-icon">📂</div>
+                    <p>還沒有任何專案</p>
+                    <p class="empty-hint">建立一個專案來開始管理你的 Prompt 版本</p>
+                </div>
+            }
+            else
+            {
+                <div class="projects-grid">
+                    @foreach (var project in projects)
+                    {
+                        <div class="project-card" @onclick="() => SelectProject(project)">
+                            <div class="project-icon">🗂️</div>
+                            <div class="project-info">
+                                <h3 class="project-name">@project.Name</h3>
+                                <p class="project-meta">
+                                    @project.VersionCount 個版本 · 
+                                    @project.UpdatedAt.ToString("MM/dd HH:mm")
+                                </p>
+                            </div>
+                            <button class="btn-delete" @onclick:stopPropagation="true" @onclick="() => DeleteProject(project)">
+                                🗑️
+                            </button>
+                        </div>
+                    }
+                </div>
+            }
+        </div>
+    }
+    else
+    {
+        <!-- 專案詳情 -->
+        <div class="project-detail">
+            <div class="detail-header">
+                <button class="btn-back" @onclick="() => selectedProject = null">
+                    ← 返回
+                </button>
+                <h2 class="detail-title">@selectedProject.Name</h2>
+                <div class="header-actions">
+                    <button class="btn-action" @onclick="SaveNewVersion">
+                        💾 儲存新版本
+                    </button>
+                    <button class="btn-action secondary" @onclick="GoToTest">
+                        🧪 前往測試
+                    </button>
+                </div>
+            </div>
+
+            <!-- 當前編輯的 Prompt -->
+            <div class="editor-section">
+                <div class="editor-card">
+                    <h3>System Prompt</h3>
+                    <textarea class="editor-input" @bind="editSystemPrompt" rows="6" 
+                        placeholder="輸入 System Prompt..."></textarea>
+                </div>
+                <div class="editor-card">
+                    <h3>Question</h3>
+                    <textarea class="editor-input" @bind="editQuestion" rows="3"
+                        placeholder="輸入測試問題..."></textarea>
+                </div>
+                <div class="editor-card">
+                    <h3>Expected Answer</h3>
+                    <textarea class="editor-input" @bind="editExpectedAnswer" rows="3"
+                        placeholder="輸入預期答案..."></textarea>
+                </div>
+            </div>
+
+            <!-- 版本列表 -->
+            <div class="versions-section">
+                <h3 class="section-subtitle">版本歷史</h3>
+                
+                @if (versions.Count == 0)
+                {
+                    <p class="no-versions">還沒有任何版本，儲存第一個版本吧！</p>
+                }
+                else
+                {
+                    <div class="versions-list">
+                        @foreach (var version in versions)
+                        {
+                            <div class="version-item @(version.Id == selectedProject.CurrentVersionId ? "current" : "")">
+                                <div class="version-header">
+                                    <span class="version-number">v@(version.VersionNumber)</span>
+                                    @if (version.IsBest)
+                                    {
+                                        <span class="tag best">⭐ best</span>
+                                    }
+                                    @if (version.IsProduction)
+                                    {
+                                        <span class="tag production">🚀 production</span>
+                                    }
+                                    <span class="version-date">@version.CreatedAt.ToString("MM/dd HH:mm")</span>
+                                </div>
+                                
+                                <div class="version-scores">
+                                    @if (version.StabilityScore.HasValue)
+                                    {
+                                        <span class="score stability">穩定性: @version.StabilityScore</span>
+                                    }
+                                    @if (version.CorrectnessScore.HasValue)
+                                    {
+                                        <span class="score correctness">正確性: @version.CorrectnessScore</span>
+                                    }
+                                </div>
+                                
+                                @if (!string.IsNullOrEmpty(version.Note))
+                                {
+                                    <div class="version-note">📝 @version.Note</div>
+                                }
+                                
+                                <div class="version-actions">
+                                    <button class="btn-small" @onclick="() => LoadVersion(version)">載入</button>
+                                    <button class="btn-small" @onclick="() => ToggleBest(version)">
+                                        @(version.IsBest ? "取消 Best" : "標記 Best")
+                                    </button>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+        </div>
+    }
+</div>
+
+@* 新專案 Modal - 使用 inline styles 確保顯示 *@
+@if (showNewProjectDialog)
+{
+    <div style="position: fixed; inset: 0; background: rgba(0,0,0,0.8); display: flex; align-items: center; justify-content: center; z-index: 9999; backdrop-filter: blur(4px);" @onclick="() => showNewProjectDialog = false">
+        <div style="background: linear-gradient(135deg, #1a1a2e 0%, #16213e 100%); border-radius: 16px; padding: 2rem; width: 90%; max-width: 400px; border: 1px solid rgba(102, 126, 234, 0.5); box-shadow: 0 25px 50px rgba(0,0,0,0.5);" @onclick:stopPropagation="true">
+            <h3 style="color: #fff; margin: 0 0 1.5rem 0; font-size: 1.25rem;">建立新專案</h3>
+            <input type="text" @bind="newProjectName" 
+                style="width: 100%; background: rgba(0,0,0,0.4); border: 1px solid rgba(255,255,255,0.2); border-radius: 8px; padding: 0.75rem 1rem; color: #fff; font-size: 1rem; margin-bottom: 1.5rem; box-sizing: border-box;"
+                placeholder="專案名稱..." @onkeyup="HandleNewProjectKeyUp" />
+            <div style="display: flex; gap: 0.75rem; justify-content: flex-end;">
+                <button style="background: rgba(255,255,255,0.1); border: none; color: #aaa; padding: 0.6rem 1.25rem; border-radius: 8px; cursor: pointer;" @onclick="() => showNewProjectDialog = false">取消</button>
+                <button style="background: linear-gradient(135deg, #667eea 0%, #764ba2 100%); border: none; color: white; padding: 0.6rem 1.25rem; border-radius: 8px; cursor: pointer;" @onclick="CreateProject">建立</button>
+            </div>
+        </div>
+    </div>
+}
+
+@code {
+    private List<PromptProject> projects = new();
+    private PromptProject? selectedProject;
+    private List<PromptVersion> versions = new();
+    private bool isLoading = true;
+    
+    // 新專案
+    private bool showNewProjectDialog;
+    private string newProjectName = "";
+    
+    // 編輯器
+    private string editSystemPrompt = "";
+    private string editQuestion = "";
+    private string editExpectedAnswer = "";
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadProjects();
+            isLoading = false;
+            StateHasChanged();
+        }
+    }
+    
+    private async Task LoadProjects()
+    {
+        projects = await VersionService.GetProjectsAsync();
+    }
+    
+    private void ShowNewProjectDialog()
+    {
+        newProjectName = "";
+        showNewProjectDialog = true;
+    }
+    
+    private async Task HandleNewProjectKeyUp(KeyboardEventArgs e)
+    {
+        if (e.Key == "Enter") await CreateProject();
+    }
+    
+    private async Task CreateProject()
+    {
+        if (string.IsNullOrWhiteSpace(newProjectName)) return;
+        
+        var project = await VersionService.CreateProjectAsync(newProjectName);
+        projects.Insert(0, project);
+        showNewProjectDialog = false;
+        
+        // 直接進入新專案
+        await SelectProject(project);
+    }
+    
+    private async Task SelectProject(PromptProject project)
+    {
+        selectedProject = project;
+        versions = await VersionService.GetVersionsAsync(project.Id);
+        
+        // 載入最新版本到編輯器
+        var latest = versions.FirstOrDefault();
+        if (latest != null)
+        {
+            editSystemPrompt = latest.SystemPrompt;
+            editQuestion = latest.Question;
+            editExpectedAnswer = latest.ExpectedAnswer;
+        }
+        else
+        {
+            editSystemPrompt = "";
+            editQuestion = "";
+            editExpectedAnswer = "";
+        }
+    }
+    
+    private async Task DeleteProject(PromptProject project)
+    {
+        await VersionService.DeleteProjectAsync(project.Id);
+        projects.Remove(project);
+    }
+    
+    private async Task SaveNewVersion()
+    {
+        if (selectedProject == null) return;
+        
+        var version = await VersionService.SaveVersionAsync(
+            selectedProject.Id,
+            editSystemPrompt,
+            editQuestion,
+            editExpectedAnswer);
+        
+        versions.Insert(0, version);
+        selectedProject.CurrentVersionId = version.Id;
+        selectedProject.VersionCount = versions.Count;
+    }
+    
+    private void LoadVersion(PromptVersion version)
+    {
+        editSystemPrompt = version.SystemPrompt;
+        editQuestion = version.Question;
+        editExpectedAnswer = version.ExpectedAnswer;
+    }
+    
+    private async Task ToggleBest(PromptVersion version)
+    {
+        var newTags = version.Tags.ToList();
+        if (version.IsBest)
+        {
+            newTags.Remove("best");
+        }
+        else
+        {
+            newTags.Add("best");
+        }
+        
+        await VersionService.UpdateVersionTagsAsync(selectedProject!.Id, version.Id, newTags);
+        versions = await VersionService.GetVersionsAsync(selectedProject.Id);
+    }
+    
+    private void GoToTest()
+    {
+        // 導航到測試頁面（之後可以帶參數）
+        Navigation.NavigateTo("/prompt-test");
+    }
+}

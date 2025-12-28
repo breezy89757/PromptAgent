@@ -56,6 +56,9 @@ builder.Services.AddOpenTelemetry()
 // 評估歷史紀錄 - 使用瀏覽器 LocalStorage
 builder.Services.AddBlazoredLocalStorage();
 
+// Prompt 版本控制服務
+builder.Services.AddScoped<PromptVersionService>();
+
 var app = builder.Build();
 
 // Configure the HTTP request pipeline.
