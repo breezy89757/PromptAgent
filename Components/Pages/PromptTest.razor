@@ -1,10 +1,12 @@
 @page "/prompt-test"
 @using PromptAgent.Models
 @using PromptAgent.Services
+@using Blazored.LocalStorage
 @inject AgentService AgentService
 @inject EvaluationService EvaluationService
 @inject ExampleGeneratorService ExampleGenerator
 @inject MetaEvaluatorService MetaEvaluator
+@inject ILocalStorageService LocalStorage
 @rendermode InteractiveServer
 @implements IDisposable
 
@@ -16,6 +18,9 @@
             <span class="title-icon">🧪</span>
             Prompt 優化測試
         </h1>
+        <button class="history-btn" @onclick="ToggleHistory">
+            📜 測試歷史 (@historyCount)
+        </button>
     </header>
 
     <div class="test-grid @(testResult != null && !isConfigExpanded ? "results-focused" : "")">
@@ -729,7 +734,134 @@
     </div>
 </div>
 
+@* 歷史紀錄 Modal *@
+@if (showHistory)
+{
+    <div class="modal-overlay" @onclick="ToggleHistory">
+        <div class="history-modal" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>📜 Prompt 測試歷史</h3>
+                <button class="close-btn" @onclick="ToggleHistory">✕</button>
+            </div>
+            <div class="modal-body">
+                @if (history.Count == 0)
+                {
+                    <p class="no-history">還沒有任何測試紀錄</p>
+                }
+                else
+                {
+                    <div class="history-list">
+                        @foreach (var item in history)
+                        {
+                            <div class="history-item" @onclick="() => LoadFromHistory(item)">
+                                <div class="history-date">@item.TestedAt.ToString("MM/dd HH:mm")</div>
+                                <div class="history-desc">@(item.SystemPrompt.Length > 40 ? item.SystemPrompt[..40] + "..." : item.SystemPrompt)</div>
+                                <div class="history-meta">
+                                    <span class="history-score stability">穩定性: @item.StabilityScore</span>
+                                    <span class="history-score correctness">正確性: @item.CorrectnessScore</span>
+                                    <span class="history-count">@item.ExecutionCount 次</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="clear-btn" @onclick="ClearHistory">🗑️ 清除全部</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
+    // ===== 歷史紀錄 (LocalStorage) =====
+    private const string HISTORY_KEY = "prompt_test_history";
+    private const int MAX_HISTORY = 30;
+    private List<PromptTestHistory> history = new();
+    private int historyCount = 0;
+    private bool showHistory = false;
+    
+    // 歷史紀錄模型
+    private class PromptTestHistory
+    {
+        public DateTime TestedAt { get; set; } = DateTime.Now;
+        public string SystemPrompt { get; set; } = "";
+        public string Question { get; set; } = "";
+        public string ExpectedAnswer { get; set; } = "";
+        public int StabilityScore { get; set; }
+        public int CorrectnessScore { get; set; }
+        public int ExecutionCount { get; set; }
+    }
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadHistoryCount();
+            StateHasChanged();
+        }
+    }
+    
+    private async Task LoadHistoryCount()
+    {
+        try
+        {
+            var items = await LocalStorage.GetItemAsync<List<PromptTestHistory>>(HISTORY_KEY);
+            historyCount = items?.Count ?? 0;
+        }
+        catch { historyCount = 0; }
+    }
+    
+    private async Task SaveToHistory()
+    {
+        if (testResult == null) return;
+        try
+        {
+            var items = await LocalStorage.GetItemAsync<List<PromptTestHistory>>(HISTORY_KEY) ?? new();
+            items.Insert(0, new PromptTestHistory
+            {
+                TestedAt = DateTime.Now,
+                SystemPrompt = testCase.SystemPrompt,
+                Question = testCase.Question,
+                ExpectedAnswer = testCase.ExpectedAnswer,
+                StabilityScore = testResult.StabilityScore,
+                CorrectnessScore = testResult.CorrectnessScore,
+                ExecutionCount = testCase.ExecutionCount
+            });
+            if (items.Count > MAX_HISTORY) items = items.Take(MAX_HISTORY).ToList();
+            await LocalStorage.SetItemAsync(HISTORY_KEY, items);
+            historyCount = items.Count;
+        }
+        catch { /* Ignore */ }
+    }
+    
+    private async Task ToggleHistory()
+    {
+        showHistory = !showHistory;
+        if (showHistory)
+        {
+            history = await LocalStorage.GetItemAsync<List<PromptTestHistory>>(HISTORY_KEY) ?? new();
+        }
+    }
+    
+    private void LoadFromHistory(PromptTestHistory item)
+    {
+        testCase.SystemPrompt = item.SystemPrompt;
+        testCase.Question = item.Question;
+        testCase.ExpectedAnswer = item.ExpectedAnswer;
+        showHistory = false;
+        StateHasChanged();
+    }
+    
+    private async Task ClearHistory()
+    {
+        await LocalStorage.RemoveItemAsync(HISTORY_KEY);
+        history.Clear();
+        historyCount = 0;
+        showHistory = false;
+    }
+    
+    // ===== 原有變數 =====
     private TestCase testCase = new();
     private TestResult? testResult;
     private bool isExecuting;
@@ -872,6 +1004,13 @@
         finally
         {
             isExecuting = false;
+            
+            // 儲存到歷史紀錄
+            if (testResult != null && testResult.Responses.Count > 0)
+            {
+                await SaveToHistory();
+            }
+            
             StateHasChanged();
         }
     }

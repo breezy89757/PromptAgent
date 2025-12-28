@@ -1,7 +1,9 @@
 @page "/gai-evaluator"
 @using PromptAgent.Models
 @using PromptAgent.Services
+@using Blazored.LocalStorage
 @inject GAIEvaluatorService EvaluatorService
+@inject ILocalStorageService LocalStorage
 @inject IJSRuntime JSRuntime
 @rendermode InteractiveServer
 
@@ -16,6 +18,9 @@
         <p class="page-subtitle">
             分析你的需求適合使用 GAI、傳統程式、還是人工處理
         </p>
+        <button class="history-btn" @onclick="ToggleHistory">
+            📜 歷史紀錄 (@historyCount)
+        </button>
     </div>
 
     <!-- 輸入表單 -->
@@ -54,6 +59,29 @@
     <!-- 結果區域 -->
     @if (result != null)
     {
+        <!-- Token 使用量與成本 -->
+        <div class="token-info-card">
+            <h3>📊 此次評估的 AI 成本</h3>
+            <div class="token-stats">
+                <div class="token-stat">
+                    <span class="stat-label">Prompt Tokens</span>
+                    <span class="stat-value">@result.EstimatedPromptTokens.ToString("N0")</span>
+                </div>
+                <div class="token-stat">
+                    <span class="stat-label">Response Tokens</span>
+                    <span class="stat-value">@result.EstimatedResponseTokens.ToString("N0")</span>
+                </div>
+                <div class="token-stat">
+                    <span class="stat-label">總計 Tokens</span>
+                    <span class="stat-value total">@result.TotalTokens.ToString("N0")</span>
+                </div>
+                <div class="token-stat cost">
+                    <span class="stat-label">預估成本</span>
+                    <span class="stat-value">$@result.EstimatedCostUsd.ToString("F4") USD / NT$@result.EstimatedCostTwd.ToString("F2")</span>
+                </div>
+            </div>
+        </div>
+
         <!-- 方案卡片 -->
         <div class="solutions-section">
             <h2 class="section-title">💡 方案比較</h2>
@@ -229,6 +257,44 @@
     }
 </div>
 
+@* 歷史紀錄 Modal *@
+@if (showHistory)
+{
+    <div class="modal-overlay" @onclick="ToggleHistory">
+        <div class="history-modal" @onclick:stopPropagation="true">
+            <div class="modal-header">
+                <h3>📜 評估歷史紀錄</h3>
+                <button class="close-btn" @onclick="ToggleHistory">✕</button>
+            </div>
+            <div class="modal-body">
+                @if (history.Count == 0)
+                {
+                    <p class="no-history">還沒有任何評估紀錄</p>
+                }
+                else
+                {
+                    <div class="history-list">
+                        @foreach (var item in history)
+                        {
+                            <div class="history-item" @onclick="() => LoadFromHistory(item)">
+                                <div class="history-date">@item.EvaluatedAt.ToString("MM/dd HH:mm")</div>
+                                <div class="history-desc">@(item.RequirementDescription.Length > 50 ? item.RequirementDescription[..50] + "..." : item.RequirementDescription)</div>
+                                <div class="history-meta">
+                                    <span class="history-recommendation">推薦: @item.RecommendedSolution</span>
+                                    <span class="history-tokens">@item.TotalTokens tokens</span>
+                                </div>
+                            </div>
+                        }
+                    </div>
+                }
+            </div>
+            <div class="modal-footer">
+                <button class="clear-btn" @onclick="ClearHistory">🗑️ 清除全部</button>
+            </div>
+        </div>
+    </div>
+}
+
 @code {
     private EvaluationRequest request = new()
     {
@@ -249,6 +315,22 @@
     private EvaluationResult? result;
     private bool isAnalyzing = false;
     
+    // 歷史紀錄相關
+    private const string HISTORY_KEY = "gai_evaluation_history";
+    private const int MAX_HISTORY = 20;
+    private List<EvaluationResult> history = new();
+    private int historyCount = 0;
+    private bool showHistory = false;
+    
+    protected override async Task OnAfterRenderAsync(bool firstRender)
+    {
+        if (firstRender)
+        {
+            await LoadHistoryCount();
+            StateHasChanged();
+        }
+    }
+    
     private void SetExample(int index)
     {
         if (index >= 0 && index < exampleRequirements.Length)
@@ -256,6 +338,54 @@
             request.RequirementDescription = exampleRequirements[index];
             StateHasChanged();
         }
+    }
+    
+    private async Task LoadHistoryCount()
+    {
+        try
+        {
+            var items = await LocalStorage.GetItemAsync<List<EvaluationResult>>(HISTORY_KEY);
+            historyCount = items?.Count ?? 0;
+        }
+        catch { historyCount = 0; }
+    }
+    
+    private async Task SaveToHistory(EvaluationResult item)
+    {
+        try
+        {
+            var items = await LocalStorage.GetItemAsync<List<EvaluationResult>>(HISTORY_KEY) ?? new();
+            items.Insert(0, item); // 最新的在前面
+            if (items.Count > MAX_HISTORY) items = items.Take(MAX_HISTORY).ToList();
+            await LocalStorage.SetItemAsync(HISTORY_KEY, items);
+            historyCount = items.Count;
+        }
+        catch { /* Ignore */ }
+    }
+    
+    private async Task ToggleHistory()
+    {
+        showHistory = !showHistory;
+        if (showHistory)
+        {
+            history = await LocalStorage.GetItemAsync<List<EvaluationResult>>(HISTORY_KEY) ?? new();
+        }
+    }
+    
+    private void LoadFromHistory(EvaluationResult item)
+    {
+        result = item;
+        request.RequirementDescription = item.RequirementDescription;
+        showHistory = false;
+        StateHasChanged();
+    }
+    
+    private async Task ClearHistory()
+    {
+        await LocalStorage.RemoveItemAsync(HISTORY_KEY);
+        history.Clear();
+        historyCount = 0;
+        showHistory = false;
     }
 
     private async Task StartAnalysis()
@@ -271,6 +401,10 @@
         try
         {
             result = await EvaluatorService.EvaluateRequirementAsync(request);
+            
+            // 儲存到歷史紀錄
+            await SaveToHistory(result);
+            
             StateHasChanged();
             
             // 等待 DOM 更新後渲染圖表

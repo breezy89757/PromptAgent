@@ -1,7 +1,9 @@
 using Azure;
 using Azure.AI.OpenAI;
+using Blazored.LocalStorage;
 using Microsoft.Extensions.AI;
 using Microsoft.Extensions.Options;
+using OpenTelemetry.Trace;
 using PromptAgent.Components;
 using PromptAgent.Services;
 
@@ -41,6 +43,18 @@ builder.Services.AddSingleton<GAIEvaluatorService>();
 
 // Meta-Evaluator 使用 Scoped，每個用戶 session 獨立追蹤
 builder.Services.AddScoped<MetaEvaluatorService>();
+
+// OpenTelemetry 監控 - 追蹤 AI 呼叫延遲
+builder.Services.AddOpenTelemetry()
+    .WithTracing(tracing => tracing
+        .AddSource("Microsoft.Agents.AI")   // MAF 內建追蹤
+        .AddSource("PromptAgent.AI")        // 自訂 AI 追蹤
+        .AddSource("System.Net.Http")       // HTTP 請求追蹤
+        .AddAspNetCoreInstrumentation()     // ASP.NET Core 追蹤
+        .AddConsoleExporter());             // 輸出到 console
+
+// 評估歷史紀錄 - 使用瀏覽器 LocalStorage
+builder.Services.AddBlazoredLocalStorage();
 
 var app = builder.Build();
 

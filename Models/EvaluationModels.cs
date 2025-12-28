@@ -92,6 +92,29 @@ public class EvaluationResult
     
     /// <summary>專業程式碼建議 (由 Codex 模型生成)</summary>
     public CodeSuggestion? CodeSuggestion { get; set; }
+    
+    // ===== Token 使用量與成本估算 =====
+    
+    /// <summary>估算的 Prompt Token 數</summary>
+    public int EstimatedPromptTokens { get; set; }
+    
+    /// <summary>估算的 Response Token 數</summary>
+    public int EstimatedResponseTokens { get; set; }
+    
+    /// <summary>總 Token 數</summary>
+    public int TotalTokens => EstimatedPromptTokens + EstimatedResponseTokens;
+    
+    /// <summary>預估 AI 呼叫成本 (USD)</summary>
+    public decimal EstimatedCostUsd { get; set; }
+    
+    /// <summary>預估 AI 呼叫成本 (TWD)</summary>
+    public decimal EstimatedCostTwd { get; set; }
+    
+    /// <summary>評估時間</summary>
+    public DateTime EvaluatedAt { get; set; } = DateTime.Now;
+    
+    /// <summary>需求描述 (用於歷史紀錄)</summary>
+    public string RequirementDescription { get; set; } = string.Empty;
 }
 
 /// <summary>

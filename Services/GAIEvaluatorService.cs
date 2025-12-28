@@ -22,6 +22,12 @@ public class GAIEvaluatorService
     // 台灣薪資中位數約 43,000 TWD/月，約 269 TWD/時
     private const decimal TW_HOURLY_RATE = 269m;
     
+    // Token 成本估算 (GPT-4o 價格: $0.01/1K input, $0.03/1K output)
+    private const decimal USD_PER_1K_INPUT_TOKENS = 0.01m;
+    private const decimal USD_PER_1K_OUTPUT_TOKENS = 0.03m;
+    private const decimal USD_TO_TWD = 32m; // 匯率
+    private const int CHARS_PER_TOKEN = 4; // 中文約 1-2 字/token，英文約 4 字/token
+    
     private readonly AzureOpenAISettings _settings;
     private readonly ILogger<GAIEvaluatorService> _logger;
     private readonly IChatClient _chatClient;
@@ -148,7 +154,29 @@ public class GAIEvaluatorService
             }
         }
         
+        // 計算 Token 成本
+        CalculateTokenCost(result, quickPrompt, content);
+        result.RequirementDescription = request.RequirementDescription;
+        
         return result;
+    }
+    
+    /// <summary>
+    /// 計算 Token 使用量和成本
+    /// </summary>
+    private static void CalculateTokenCost(EvaluationResult result, string prompt, string response)
+    {
+        // 估算 Token 數量（中文約 1-2 字/token）
+        result.EstimatedPromptTokens = Math.Max(1, prompt.Length / CHARS_PER_TOKEN);
+        result.EstimatedResponseTokens = Math.Max(1, response.Length / CHARS_PER_TOKEN);
+        
+        // 計算成本
+        var inputCost = (result.EstimatedPromptTokens / 1000m) * USD_PER_1K_INPUT_TOKENS;
+        var outputCost = (result.EstimatedResponseTokens / 1000m) * USD_PER_1K_OUTPUT_TOKENS;
+        result.EstimatedCostUsd = inputCost + outputCost;
+        result.EstimatedCostTwd = result.EstimatedCostUsd * USD_TO_TWD;
+        
+        result.EvaluatedAt = DateTime.Now;
     }
     
     /// <summary>
@@ -181,6 +209,10 @@ public class GAIEvaluatorService
                 _logger.LogWarning(ex, "Failed to get code suggestion from Codex");
             }
         }
+        
+        // 計算 Token 成本
+        CalculateTokenCost(result, userPrompt, content);
+        result.RequirementDescription = request.RequirementDescription;
         
         return result;
     }

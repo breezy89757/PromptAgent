@@ -33,6 +33,9 @@ public class AzureOpenAISettings
 /// </summary>
 public class AgentService
 {
+    // OpenTelemetry 追蹤源
+    private static readonly ActivitySource _activitySource = new("PromptAgent.AI");
+    
     private readonly ILogger<AgentService> _logger;
     private readonly IChatClient _chatClient;
 
@@ -47,6 +50,12 @@ public class AgentService
     /// </summary>
     public async Task<AgentResponse> ExecuteAgentAsync(TestCase testCase, int executionIndex, CancellationToken cancellationToken = default)
     {
+        // 開始 OTel span
+        using var activity = _activitySource.StartActivity("AI.PromptTest", ActivityKind.Client);
+        activity?.SetTag("ai.execution_index", executionIndex);
+        activity?.SetTag("ai.prompt_length", testCase.SystemPrompt.Length);
+        activity?.SetTag("ai.question_length", testCase.Question.Length);
+        
         var stopwatch = Stopwatch.StartNew();
         try
         {
@@ -62,6 +71,11 @@ public class AgentService
 
             var content = response.ToString();
 
+            // 記錄成功的追蹤資訊
+            activity?.SetTag("ai.response_length", content.Length);
+            activity?.SetTag("ai.latency_ms", stopwatch.ElapsedMilliseconds);
+            activity?.SetTag("ai.success", true);
+
             _logger.LogInformation("Agent execution {Index} completed in {Time}ms", executionIndex, stopwatch.ElapsedMilliseconds);
 
             return new AgentResponse
@@ -75,6 +89,12 @@ public class AgentService
         catch (Exception ex)
         {
             stopwatch.Stop();
+            
+            // 記錄錯誤追蹤資訊
+            activity?.SetTag("ai.success", false);
+            activity?.SetTag("ai.error", ex.Message);
+            activity?.SetStatus(ActivityStatusCode.Error, ex.Message);
+            
             _logger.LogError(ex, "Agent execution {Index} failed", executionIndex);
 
             return new AgentResponse
